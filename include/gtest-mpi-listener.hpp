@@ -210,8 +210,8 @@ class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
                    MPI_STATUS_IGNORE);
           MPI_Recv(&resultSummarySize, 1, MPI_INT, r, r, comm,
                    MPI_STATUS_IGNORE);
-          char *resultFileName = new char[resultFileNameSize];
-          char *resultSummary = new char[resultSummarySize];
+          char resultFileName[resultFileNameSize];
+          char resultSummary[resultSummarySize];
           MPI_Recv(resultFileName, resultFileNameSize, MPI_CHAR, r, r, comm,
                    MPI_STATUS_IGNORE);
           MPI_Recv(resultSummary, resultSummarySize, MPI_CHAR, r, r, comm,
@@ -223,8 +223,6 @@ class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
                  resultFileName,
                  resultLineNumber,
                  resultSummary);
-          delete [] resultFileName;
-          delete [] resultSummary;
         }
       }
     }
