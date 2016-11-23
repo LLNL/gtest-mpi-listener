@@ -223,13 +223,12 @@ class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
                  resultSummary);
         }
       }
+
+      printf("*** Test %s.%s ending.\n",
+             test_info.test_case_name(), test_info.name());
     }
 
   result_vector.clear();
-  if (rank == 0) {
-    printf("*** Test %s.%s ending.\n",
-           test_info.test_case_name(), test_info.name());
-  }
 }
 
  private:
