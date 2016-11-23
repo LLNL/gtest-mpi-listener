@@ -170,21 +170,23 @@ class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
       // Nonzero ranks send constituent parts of each result to rank 0
       for (int i = 0; i < localResultCount; i++) {
         const ::testing::TestPartResult test_part_result = result_vector.at(i);
-        const int resultStatus(test_part_result.failed());
-        const std::string resultFileName(test_part_result.file_name());
-        const int resultLineNumber(test_part_result.line_number());
-        const std::string resultSummary(test_part_result.summary());
+        int resultStatus(test_part_result.failed());
+        std::string resultFileName(test_part_result.file_name());
+        int resultLineNumber(test_part_result.line_number());
+        std::string resultSummary(test_part_result.summary());
 
         // Must add one for null termination
-        const int resultFileNameSize(resultFileName.size()+1);
-        const int resultSummarySize(resultSummary.size()+1);
+        int resultFileNameSize(resultFileName.size()+1);
+        int resultSummarySize(resultSummary.size()+1);
 
         MPI_Send(&resultStatus, 1, MPI_INT, 0, rank, comm);
         MPI_Send(&resultFileNameSize, 1, MPI_INT, 0, rank, comm);
         MPI_Send(&resultLineNumber, 1, MPI_INT, 0, rank, comm);
         MPI_Send(&resultSummarySize, 1, MPI_INT, 0, rank, comm);
-        MPI_Send(resultFileName.c_str(), resultFileNameSize, MPI_CHAR, 0, rank, comm);
-        MPI_Send(resultSummary.c_str(), resultSummarySize, MPI_CHAR, 0, rank, comm);
+        MPI_Send((char *)resultFileName.c_str(), resultFileNameSize, MPI_CHAR,
+                 0, rank, comm);
+        MPI_Send((char *)resultSummary.c_str(), resultSummarySize, MPI_CHAR,
+                 0, rank, comm);
       }
     } else {
       // Rank 0 first prints its local result data
