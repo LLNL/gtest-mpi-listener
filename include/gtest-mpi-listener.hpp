@@ -147,8 +147,6 @@ class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
       printf("*** Test %s.%s starting.\n",
              test_info.test_case_name(), test_info.name());
     }
-    result_vector.clear();
-    MPI_Barrier(comm);
   }
 
   // Called after an assertion failure or an explicit SUCCESS() macro.
