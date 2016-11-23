@@ -61,11 +61,13 @@ TEST(BasicMPI, PassExceptOnRankZero) {
 }
 
 int main(int argc, char** argv) {
-  // Filter out googletest arguments
+  // Filter out Google Test arguments
   ::testing::InitGoogleTest(&argc, argv);
 
+  // Initialize MPI
   MPI_Init(&argc, &argv);
 
+  // Add object that will finalize MPI on exit; Google Test owns this pointer
   ::testing::AddGlobalTestEnvironment(new MPIEnvironment);
 
   // Get the event listener list.
@@ -81,6 +83,5 @@ int main(int argc, char** argv) {
   // Run tests, then clean up and exit
   RUN_ALL_TESTS();
 
-  //  MPI_Finalize();
   return 0;
 }
