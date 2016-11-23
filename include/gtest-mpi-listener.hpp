@@ -174,10 +174,12 @@ class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
         const ::testing::TestPartResult test_part_result = result_vector.at(i);
         const int resultStatus(test_part_result.failed());
         const std::string resultFileName(test_part_result.file_name());
-        const int resultFileNameSize(resultFileName.size());
         const int resultLineNumber(test_part_result.line_number());
         const std::string resultSummary(test_part_result.summary());
-        const int resultSummarySize(resultSummary.size());
+
+        // Must add one for null termination
+        const int resultFileNameSize(resultFileName.size()+1);
+        const int resultSummarySize(resultSummary.size()+1);
 
         MPI_Send(&resultStatus, 1, MPI_INT, 0, rank, comm);
         MPI_Send(&resultFileNameSize, 1, MPI_INT, 0, rank, comm);
