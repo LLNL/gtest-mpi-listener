@@ -1,3 +1,50 @@
+
+[comment]: ####################################################################
+[comment]: #
+[comment]: # Copyright (c) 2016-2018, Lawrence Livermore National Security, LLC.
+[comment]: # Produced at the Lawrence Livermore National Laboratory
+[comment]: # Written by Geoffrey M. Oxberry <oxberry1@llnl.gov>
+[comment]: # LLNL-CODE-739313
+[comment]: # All rights reserved.
+[comment]: #
+[comment]: # This file is part of gtest-mpi-listener. For details, see
+[comment]: # https://github.com/LLNL/gtest-mpi-listener
+[comment]: #
+[comment]: # Please also see the LICENSE and COPYRIGHT files for the BSD-3
+[comment]: # license and copyright information.
+[comment]: #
+[comment]: # Redistribution and use in source and binary forms, with or without
+[comment]: # modification, are permitted provided that the following conditions
+[comment]: # are met:
+[comment]: #
+[comment]: # * Redistributions of source code must retain the above copyright
+[comment]: #   notice, this list of conditions and the disclaimer below.
+[comment]: #
+[comment]: # * Redistributions in binary form must reproduce the above copyright
+[comment]: #   notice, this list of conditions and the disclaimer (as noted
+[comment]: #   below) in the documentation and/or other materials provided with
+[comment]: #   the distribution.
+[comment]: #
+[comment]: # * Neither the name of the LLNS/LLNL nor the names of its
+[comment]: #   contributors may be used to endorse or promote products derived
+[comment]: #   from this software without specific prior written permission.
+[comment]: #
+[comment]: # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+[comment]: # "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+[comment]: # LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+[comment]: # FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL
+[comment]: # LAWRENCE LIVERMORE NATIONAL SECURITY, LLC, THE U.S. DEPARTMENT OF
+[comment]: # ENERGY OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+[comment]: # INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+[comment]: # (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+[comment]: # OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+[comment]: # INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+[comment]: # WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+[comment]: # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+[comment]: # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+[comment]: #
+[comment]: ####################################################################
+
 # googletest-mpi-listener
 
 The goals of this project are:
