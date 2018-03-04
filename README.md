@@ -56,7 +56,12 @@ in its entirety, per its terms:
   take time)
 - a C++98-standard-compliant C++ compiler
 - all of the requirements for Google Test
-- a standards-conforming MPI-1.x implementation (e.g., [MPICH](http://www.mpich.org/), [Open MPI](https://www.open-mpi.org/), [MVAPICH](http://mvapich.cse.ohio-state.edu/), [Intel MPI](https://software.intel.com/en-us/intel-mpi-library))
+- a standards-conforming MPI-1.x implementation
+  (e.g.,
+  [MPICH](http://www.mpich.org/),
+  [Open MPI](https://www.open-mpi.org/),
+  [MVAPICH](http://mvapich.cse.ohio-state.edu/),
+  [Intel MPI](https://software.intel.com/en-us/intel-mpi-library))
 
 # Building the example code
 
