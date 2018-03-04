@@ -277,7 +277,7 @@ class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
              test_info.test_case_name(), test_info.name());
     }
 
-  result_vector.clear();
+    result_vector.clear();
 }
 
  private:
