@@ -82,6 +82,9 @@
 #ifndef GTEST_MPI_MINIMAL_LISTENER_H
 #define GTEST_MPI_MINIMAL_LISTENER_H
 
+#include "internal/cstring_util.hpp"
+#include "internal/pretty_print.hpp"
+#include "internal/test_result_comm.hpp"
 #include "mpi.h"
 #include "gtest/gtest.h"
 #include <cassert>
@@ -218,77 +221,169 @@ public:
   // Called after a test ends.
   void OnTestEnd(const ::testing::TestInfo &test_info) override
   {
-    int localResultCount = result_vector.size();
-    std::vector<int> resultCountOnRank(size_, 0);
-    MPI_Gather(&localResultCount, 1, MPI_INT, &resultCountOnRank[0], 1, MPI_INT,
-               0, comm_);
+    using namespace internal;
+    Test_Result_Communicator result_comm{result_vector, comm_};
 
     if (rank_ != 0) {
-      // Nonzero ranks send constituent parts of each result to rank 0
-      for (int i = 0; i < localResultCount; i++) {
-        const ::testing::TestPartResult test_part_result = result_vector.at(i);
-        int resultStatus(test_part_result.failed());
-        std::string resultFileName(test_part_result.file_name());
-        int resultLineNumber(test_part_result.line_number());
-        std::string resultSummary(test_part_result.summary());
-
-        // Must add one for null termination
-        int resultFileNameSize(resultFileName.size() + 1);
-        int resultSummarySize(resultSummary.size() + 1);
-
-        MPI_Send(&resultStatus, 1, MPI_INT, 0, rank_, comm_);
-        MPI_Send(&resultFileNameSize, 1, MPI_INT, 0, rank_, comm_);
-        MPI_Send(&resultLineNumber, 1, MPI_INT, 0, rank_, comm_);
-        MPI_Send(&resultSummarySize, 1, MPI_INT, 0, rank_, comm_);
-        MPI_Send((char *)resultFileName.c_str(), resultFileNameSize, MPI_CHAR,
-                 0, rank_, comm_);
-        MPI_Send((char *)resultSummary.c_str(), resultSummarySize, MPI_CHAR, 0,
-                 rank_, comm_);
+      for (auto send_it = result_comm.send_iterator(); !send_it.end();
+           ++send_it) {
+        send_it.send();
       }
     } else {
       // Rank 0 first prints its local result data
-      for (int i = 0; i < localResultCount; i++) {
-        const ::testing::TestPartResult test_part_result = result_vector.at(i);
-        printf("      %s on rank %d, %s:%d\n%s\n",
-               test_part_result.failed() ? "*** Failure" : "Success", rank_,
-               test_part_result.file_name(), test_part_result.line_number(),
-               test_part_result.summary());
+      for (auto res_it = result_comm.test_iterator(); !res_it.end(); ++res_it) {
+        PrintTestResult(*res_it, 0);
       }
 
-      for (int r = 1; r < size_; r++) {
-        for (int i = 0; i < resultCountOnRank[r]; i++) {
-          int resultStatus, resultFileNameSize, resultLineNumber,
-              resultSummarySize;
-          MPI_Recv(&resultStatus, 1, MPI_INT, r, r, comm_, MPI_STATUS_IGNORE);
-          MPI_Recv(&resultFileNameSize, 1, MPI_INT, r, r, comm_,
-                   MPI_STATUS_IGNORE);
-          MPI_Recv(&resultLineNumber, 1, MPI_INT, r, r, comm_,
-                   MPI_STATUS_IGNORE);
-          MPI_Recv(&resultSummarySize, 1, MPI_INT, r, r, comm_,
-                   MPI_STATUS_IGNORE);
-          char resultFileName[resultFileNameSize];
-          char resultSummary[resultSummarySize];
-          MPI_Recv(resultFileName, resultFileNameSize, MPI_CHAR, r, r, comm_,
-                   MPI_STATUS_IGNORE);
-          MPI_Recv(resultSummary, resultSummarySize, MPI_CHAR, r, r, comm_,
-                   MPI_STATUS_IGNORE);
-
-          printf("      %s on rank %d, %s:%d\n%s\n",
-                 resultStatus ? "*** Failure" : "Success", r, resultFileName,
-                 resultLineNumber, resultSummary);
+      for (int r = 1; r < size_; ++r) {
+        for (auto rescv_it = result_comm.recieve_iterator(r); !rescv_it.end();
+             ++rescv_it) {
+          PrintTestResult(rescv_it.recieve(), r);
         }
       }
 
-      printf("*** Test %s.%s ending.\n", test_info.test_case_name(),
-             test_info.name());
+      PrintTestEnd(test_info);
     }
 
     result_vector.clear();
   }
 
+  virtual void PrintTestResult(internal::Test_Result const &result,
+                               int res_rank)
+  {
+    if (rank_ != 0) {
+      return;
+    }
+
+    printf("      %s on rank %d, %s:%d\n%s\n",
+           result.failed ? "*** Failure" : "Success", res_rank,
+           result.filename.c_str(), result.line_number, result.summary.c_str());
+  }
+
+  virtual void PrintTestEnd(const ::testing::TestInfo &test_info) const
+  {
+    if (rank_ != 0) {
+      return;
+    }
+
+    printf("*** Test %s.%s ending.\n", test_info.test_case_name(),
+           test_info.name());
+  }
+
 private:
   std::vector<::testing::TestPartResult> result_vector;
 };
+
+class PrettyMPIPrinter : public MPIMinimalistPrinter
+{
+public:
+  using MPIMinimalistPrinter::MPIMinimalistPrinter;
+
+  virtual ~PrettyMPIPrinter(){};
+
+  // Fired before each iteration of tests starts.
+  // Source: googletest/src/gtest.cc
+  void OnTestIterationStart(const ::testing::UnitTest &unit_test,
+                            int iteration) override
+  {
+    using namespace ::testing;
+    using namespace internal;
+
+    if (rank_ != 0) {
+      return;
+    }
+
+    if (GTEST_FLAG(repeat) != 1) {
+      printf("\nRepeating all tests (iteration %d) . . .\n\n", iteration + 1);
+    }
+
+    const char *const filter = GTEST_FLAG(filter).c_str();
+
+    // Prints the filter if it's not *. This reminds the user that some
+    // tests may be skipped.
+    if (!CStringEquals(filter, "*")) {
+      ColoredPrintf(COLOR_YELLOW, "Note: %s filter = %s\n", GTEST_NAME_,
+                    filter);
+    }
+
+    if (GTEST_FLAG(shuffle)) {
+      ColoredPrintf(COLOR_YELLOW,
+                    "Note: Randomizing tests' orders with a seed of %d .\n",
+                    unit_test.random_seed());
+    }
+
+    ColoredPrintf(COLOR_GREEN, "[==========] ");
+
+    printf("Running %s from %s using %s.\n",
+           FormatTestCount(unit_test.test_to_run_count()).c_str(),
+           FormatTestCaseCount(unit_test.test_case_to_run_count()).c_str(),
+           FormatMPIRankCount(size_).c_str());
+
+    fflush(stdout);
+  }
+
+  // Source: googletest/src/gtest.cc
+  void OnEnvironmentsSetUpStart(const ::testing::UnitTest &) override
+  {
+    using namespace internal;
+
+    if (rank_ != 0) {
+      return;
+    }
+
+    ColoredPrintf(COLOR_GREEN, "[----------] ");
+    printf("Global test environment set-up.\n");
+    fflush(stdout);
+  }
+
+  // Source: googletest/src/gtest.cc
+  void OnTestCaseStart(const ::testing::TestCase &test_case) override
+  {
+    using namespace internal;
+
+    if (rank_ != 0) {
+      return;
+    }
+
+    const std::string counts =
+        FormatCountableNoun(test_case.test_to_run_count(), "test", "tests");
+
+    ColoredPrintf(COLOR_GREEN, "[----------] ");
+
+    printf("%s from %s", counts.c_str(), test_case.name());
+
+    if (test_case.type_param() == NULL) {
+      printf("\n");
+    } else {
+      printf(", where TypeParam = %s\n", test_case.type_param());
+    }
+
+    fflush(stdout);
+  }
+
+  // Source: googletest/src/gtest.cc
+  void OnTestStart(const ::testing::TestInfo &test_info) override
+  {
+    using namespace internal;
+
+    if (rank_ != 0) {
+      return;
+    }
+
+    ColoredPrintf(COLOR_GREEN, "[ RUN      ] ");
+    printf("%s.%s\n", test_info.test_case_name(), test_info.name());
+    fflush(stdout);
+  }
+
+  // void OnTestEnd(const ::testing::TestInfo &test_info) override {}
+
+  // void OnTestCaseEnd(const ::testing::TestCase &test_case) override;
+  // void
+  // OnEnvironmentsTearDownStart(const ::testing::UnitTest &unit_test) override;
+  // void OnTestIterationEnd(const ::testing::UnitTest &unit_test,
+  // int iteration) override;
+};
+
 } // namespace gtest_mpi_listener
 
 #endif /* GTEST_MPI_MINIMAL_LISTENER_H */

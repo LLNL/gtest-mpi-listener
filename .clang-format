@@ -31,3 +31,10 @@ BraceWrapping: {
 # If the constructor initializers don’t fit on a line, put each initializer on
 # its own line.
 ConstructorInitializerAllOnOneLineOrOnePerLine : 'true'
+
+# If true, clang-format will sort #includes.
+SortIncludes: 'true'
+
+AllowShortFunctionsOnASingleLine: 'Empty'
+AllowShortIfStatementsOnASingleLine: 'false'
+AllowShortLoopsOnASingleLine: 'false'

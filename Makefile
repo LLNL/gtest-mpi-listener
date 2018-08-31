@@ -55,10 +55,12 @@ GTEST_ROOT=googletest/googletest
 
 all: $(BIN)/example.exe
 
+headers := $(INCLUDE)/gtest-mpi-listener.hpp $(wildcard $(INCLUDE)/internal/*.hpp)
+
 $(BIN)/example.exe: $(BIN)/example.o $(BIN)/gtest.o
 	$(CXX) $(CXXFLAGS) -o $(BIN)/example.exe $^
 
-$(BIN)/example.o: $(SRC)/example.cpp $(BIN)/gtest.o $(INCLUDE)/gtest-mpi-listener.hpp
+$(BIN)/example.o: $(SRC)/example.cpp $(BIN)/gtest.o $(headers)
 	-mkdir -p $(BIN)
 	$(CXX) $(CXXFLAGS) -c -o $(BIN)/example.o -I$(GTEST_ROOT)/include \
 	-Iinclude $(SRC)/example.cpp
