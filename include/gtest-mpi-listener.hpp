@@ -100,6 +100,7 @@ public:
   {
     int is_mpi_initialized;
     ASSERT_EQ(MPI_Initialized(&is_mpi_initialized), MPI_SUCCESS);
+
     if (!is_mpi_initialized) {
       printf("MPI must be initialized before RUN_ALL_TESTS!\n");
       printf("Add '::testing::InitGoogleTest(&argc, argv);\n");
@@ -112,21 +113,25 @@ public:
   {
     int is_mpi_finalized;
     ASSERT_EQ(MPI_Finalized(&is_mpi_finalized), MPI_SUCCESS);
+
     if (!is_mpi_finalized) {
       int rank;
       ASSERT_EQ(MPI_Comm_rank(MPI_COMM_WORLD, &rank), MPI_SUCCESS);
+
       if (rank == 0) {
         printf("Finalizing MPI...\n");
       }
+
       ASSERT_EQ(MPI_Finalize(), MPI_SUCCESS);
     }
+
     ASSERT_EQ(MPI_Finalized(&is_mpi_finalized), MPI_SUCCESS);
     ASSERT_TRUE(is_mpi_finalized);
   }
 
 private:
   // Disallow copying
-  MPIEnvironment(const MPIEnvironment &env) {}
+  MPIEnvironment(const MPIEnvironment &) {}
 };
 
 // This class more or less takes the code in Google Test's
@@ -135,25 +140,13 @@ private:
 class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
 {
 public:
-  MPIMinimalistPrinter() : ::testing::EmptyTestEventListener(), result_vector()
-  {
-    int is_mpi_initialized;
-    assert(MPI_Initialized(&is_mpi_initialized) == MPI_SUCCESS);
-    if (!is_mpi_initialized) {
-      printf("MPI must be initialized before RUN_ALL_TESTS!\n");
-      printf("Add '::testing::InitGoogleTest(&argc, argv);\n");
-      printf("     MPI_Init(&argc, &argv);' to your 'main' function!\n");
-      assert(0);
-    }
-    MPI_Comm_dup(MPI_COMM_WORLD, &comm);
-    UpdateCommState();
-  }
+  MPIMinimalistPrinter() : MPIMinimalistPrinter(MPI_COMM_WORLD){};
 
   MPIMinimalistPrinter(MPI_Comm comm_)
-      : ::testing::EmptyTestEventListener(), result_vector()
   {
-    int is_mpi_initialized;
+    int is_mpi_initialized = 0;
     assert(MPI_Initialized(&is_mpi_initialized) == MPI_SUCCESS);
+
     if (!is_mpi_initialized) {
       printf("MPI must be initialized before RUN_ALL_TESTS!\n");
       printf("Add '::testing::InitGoogleTest(&argc, argv);\n");
@@ -166,26 +159,16 @@ public:
   }
 
   MPIMinimalistPrinter(const MPIMinimalistPrinter &printer)
+      : MPIMinimalistPrinter(printer.comm)
   {
-
-    int is_mpi_initialized;
-    assert(MPI_Initialized(&is_mpi_initialized) == MPI_SUCCESS);
-    if (!is_mpi_initialized) {
-      printf("MPI must be initialized before RUN_ALL_TESTS!\n");
-      printf("Add '::testing::InitGoogleTest(&argc, argv);\n");
-      printf("     MPI_Init(&argc, &argv);' to your 'main' function!\n");
-      assert(0);
-    }
-
-    MPI_Comm_dup(printer.comm, &comm);
-    UpdateCommState();
     result_vector = printer.result_vector;
   }
 
   ~MPIMinimalistPrinter()
   {
-    int is_mpi_finalized;
+    int is_mpi_finalized = 0;
     assert(MPI_Finalized(&is_mpi_finalized) == MPI_SUCCESS);
+
     if (!is_mpi_finalized) {
       MPI_Comm_free(&comm);
     }
@@ -286,14 +269,16 @@ private:
   MPI_Comm comm;
   int rank;
   int size;
-  std::vector< ::testing::TestPartResult> result_vector;
+  std::vector<::testing::TestPartResult> result_vector;
 
   int UpdateCommState()
   {
     int flag = MPI_Comm_rank(comm, &rank);
+
     if (flag != MPI_SUCCESS) {
       return flag;
     }
+
     flag = MPI_Comm_size(comm, &size);
     return flag;
   }
