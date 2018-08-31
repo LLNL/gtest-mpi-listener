@@ -47,6 +47,7 @@ SRC=src
 INCLUDE=include
 BIN=bin
 CXX=mpicxx
+CXXFLAGS += -std=c++11
 
 GTEST_ROOT=googletest/googletest
 
