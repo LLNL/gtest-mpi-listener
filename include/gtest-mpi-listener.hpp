@@ -122,11 +122,6 @@ public:
     if (!is_mpi_finalized) {
       int rank;
       ASSERT_EQ(MPI_Comm_rank(MPI_COMM_WORLD, &rank), MPI_SUCCESS);
-
-      if (rank == 0) {
-        printf("Finalizing MPI...\n");
-      }
-
       ASSERT_EQ(MPI_Finalize(), MPI_SUCCESS);
     }
 
@@ -222,6 +217,7 @@ public:
   void OnTestEnd(const ::testing::TestInfo &test_info) override
   {
     using namespace internal;
+    std::set<int> failed_ranks;
     Test_Result_Communicator result_comm{result_vector, comm_};
 
     if (rank_ != 0) {
@@ -231,20 +227,33 @@ public:
       }
     } else {
       // Rank 0 first prints its local result data
+
       for (auto res_it = result_comm.test_iterator(); !res_it.end(); ++res_it) {
-        PrintTestResult(*res_it, 0);
+        auto result = *res_it;
+
+        PrintTestResult(result, 0);
+
+        if (result.type != ::testing::TestPartResult::Type::kSuccess) {
+          failed_ranks.insert(0);
+        }
       }
 
       for (int r = 1; r < size_; ++r) {
         for (auto rescv_it = result_comm.recieve_iterator(r); !rescv_it.end();
              ++rescv_it) {
-          PrintTestResult(rescv_it.recieve(), r);
+          auto result = rescv_it.recieve();
+
+          PrintTestResult(result, r);
+
+          if (result.type != ::testing::TestPartResult::Type::kSuccess) {
+            failed_ranks.insert(r);
+          }
         }
       }
-
-      PrintTestEnd(test_info);
     }
 
+    PrintTestEnd(test_info, failed_ranks);
+    AppendFailedTest(test_info, failed_ranks);
     result_vector.clear();
   }
 
@@ -256,11 +265,15 @@ public:
     }
 
     printf("      %s on rank %d, %s:%d\n%s\n",
-           result.failed ? "*** Failure" : "Success", res_rank,
-           result.filename.c_str(), result.line_number, result.summary.c_str());
+           (result.type != ::testing::TestPartResult::Type::kSuccess)
+               ? "*** Failure"
+               : "Success",
+           res_rank, result.filename.c_str(), result.line_number,
+           result.message.c_str());
   }
 
-  virtual void PrintTestEnd(const ::testing::TestInfo &test_info) const
+  virtual void PrintTestEnd(const ::testing::TestInfo &test_info,
+                            std::set<int> const &) const
   {
     if (rank_ != 0) {
       return;
@@ -270,16 +283,24 @@ public:
            test_info.name());
   }
 
+  virtual void AppendFailedTest(const ::testing::TestInfo &,
+                                std::set<int> const &){};
+
 private:
   std::vector<::testing::TestPartResult> result_vector;
 };
 
+// A variant of the MPIMinimalistPrinter that tries to be as true to the default
+// output googletest gives as possible, but still including additional
+// information from MPI such as which rank the failure was on.
 class PrettyMPIPrinter : public MPIMinimalistPrinter
 {
 public:
   using MPIMinimalistPrinter::MPIMinimalistPrinter;
 
   virtual ~PrettyMPIPrinter(){};
+
+  // Overloaded functions for the TestEventListener
 
   // Fired before each iteration of tests starts.
   // Source: googletest/src/gtest.cc
@@ -332,7 +353,7 @@ public:
     }
 
     ColoredPrintf(COLOR_GREEN, "[----------] ");
-    printf("Global test environment set-up.\n");
+    printf("Global MPI test environment set-up.\n");
     fflush(stdout);
   }
 
@@ -375,13 +396,207 @@ public:
     fflush(stdout);
   }
 
-  // void OnTestEnd(const ::testing::TestInfo &test_info) override {}
+  // Source: googletest/src/gtest.cc
+  void OnTestCaseEnd(const ::testing::TestCase &test_case) override
+  {
+    using namespace internal;
+    using namespace ::testing;
 
-  // void OnTestCaseEnd(const ::testing::TestCase &test_case) override;
-  // void
-  // OnEnvironmentsTearDownStart(const ::testing::UnitTest &unit_test) override;
-  // void OnTestIterationEnd(const ::testing::UnitTest &unit_test,
-  // int iteration) override;
+    if (!GTEST_FLAG(print_time))
+      return;
+
+    // Collect the runtimes of each thread, test runtime will be the max time
+    auto time_in_ms = test_case.elapsed_time();
+    auto full_time_in_ms = 0;
+    MPI_Reduce(&time_in_ms, &full_time_in_ms, 1, MPI_LONG_LONG_INT, MPI_MAX, 0,
+               comm_);
+
+    if (rank_ != 0) {
+      return;
+    }
+
+    const std::string counts =
+        FormatCountableNoun(test_case.test_to_run_count(), "test", "tests");
+
+    ColoredPrintf(COLOR_GREEN, "[----------] ");
+
+    printf("%s from %s (%s ms total)\n\n", counts.c_str(), test_case.name(),
+           ::testing::internal::StreamableToString(full_time_in_ms).c_str());
+
+    fflush(stdout);
+  }
+
+  // Source: googletest/src/gtest.cc
+  void OnEnvironmentsTearDownStart(const ::testing::UnitTest &) override
+  {
+    using namespace internal;
+
+    if (rank_ != 0) {
+      return;
+    }
+
+    ColoredPrintf(COLOR_GREEN, "[----------] ");
+    printf("Global MPI test environment tear-down\n");
+    fflush(stdout);
+  }
+
+  // Source: googletest/src/gtest.cc
+  void OnTestIterationEnd(const ::testing::UnitTest &unit_test, int) override
+  {
+    using namespace internal;
+    using namespace ::testing;
+
+    if (rank_ != 0) {
+      return;
+    }
+
+    ColoredPrintf(COLOR_GREEN, "[==========] ");
+
+    printf("%s from %s ran.",
+           FormatTestCount(unit_test.test_to_run_count()).c_str(),
+           FormatTestCaseCount(unit_test.test_case_to_run_count()).c_str());
+
+    if (GTEST_FLAG(print_time)) {
+      printf(" (%s ms total)",
+             ::testing::internal::StreamableToString(unit_test.elapsed_time())
+                 .c_str());
+    }
+    printf("\n");
+
+    auto num_failures = failed_tests.size();
+
+    ColoredPrintf(COLOR_GREEN, "[  PASSED  ] ");
+    printf(
+        "%s.\n",
+        FormatTestCount(unit_test.total_test_count() - num_failures).c_str());
+
+    if (num_failures > 0) {
+      ColoredPrintf(COLOR_RED, "[  FAILED  ] ");
+      printf("%s, listed below:\n", FormatTestCount(num_failures).c_str());
+      PrintFailedTests();
+
+      printf("\n%s\n",
+             FormatCountableNoun(num_failures, "FAILED TEST", "FAILED TESTS")
+                 .c_str());
+    }
+
+    int num_disabled = unit_test.reportable_disabled_test_count();
+    if (num_disabled && !GTEST_FLAG(also_run_disabled_tests)) {
+      if (!num_failures) {
+        printf("\n"); // Add a spacer if no FAILURE banner is displayed.
+      }
+      ColoredPrintf(COLOR_YELLOW, "  YOU HAVE %d DISABLED %s\n\n", num_disabled,
+                    num_disabled == 1 ? "TEST" : "TESTS");
+    }
+
+    fflush(stdout);
+  }
+
+  // Functions special for the MPI interface
+
+  // Print the failure of a specific node
+  void PrintTestResult(internal::Test_Result const &result,
+                       int res_rank) override
+  {
+    using namespace ::testing;
+    using namespace internal;
+
+    if (rank_ != 0) {
+      return;
+    }
+
+    if (result.type == TestPartResult::Type::kSuccess) {
+      return;
+    }
+
+    auto summary_as_string =
+        (Message() << ::testing::internal::FormatFileLocation(
+                          result.filename.c_str(), result.line_number)
+                   << " " << TestPartResultTypeToString(result.type)
+                   << " on rank " << res_rank << "\n"
+                   << result.message)
+            .GetString();
+
+    printf("%s\n", summary_as_string.c_str());
+    fflush(stdout);
+  }
+
+  // Summary print at the end of a test, including timing
+  void PrintTestEnd(const ::testing::TestInfo &test_info,
+                    std::set<int> const &failed_ranks) const override
+  {
+    using namespace ::testing;
+    using namespace internal;
+
+    // Collect the runtimes of each thread, test runtime will be the max time
+    auto time_in_ms = test_info.result()->elapsed_time();
+    auto full_time_in_ms = 0;
+    MPI_Reduce(&time_in_ms, &full_time_in_ms, 1, MPI_LONG_LONG_INT, MPI_MAX, 0,
+               comm_);
+
+    if (rank_ != 0) {
+      return;
+    }
+
+    if (failed_ranks.empty()) {
+      ColoredPrintf(COLOR_GREEN, "[       OK ] ");
+    } else {
+      ColoredPrintf(COLOR_RED, "[  FAILED  ] ");
+    }
+
+    printf("%s.%s", test_info.test_case_name(), test_info.name());
+
+    if (!failed_ranks.empty()) {
+      printf(" on ranks {");
+      ColoredPrintf(COLOR_RED, "%s", FormatRangedSet(failed_ranks).c_str());
+      printf("}");
+    }
+
+    if (GTEST_FLAG(print_time)) {
+      printf(" (%s ms)\n",
+             ::testing::internal::StreamableToString(full_time_in_ms).c_str());
+    } else {
+      printf("\n");
+    }
+
+    fflush(stdout);
+  }
+
+  // Add test failures to the list of failures on rank 0
+  void AppendFailedTest(const ::testing::TestInfo &test_info,
+                        std::set<int> const &failed_ranks) override
+  {
+    if (rank_ != 0 or failed_ranks.empty()) {
+      return;
+    }
+
+    failed_tests.push_back(
+        Failed_Tests_Summary{std::string{test_info.test_case_name()},
+                             std::string{test_info.name()}, failed_ranks});
+  }
+
+  // Print the list of failed tests
+  virtual void PrintFailedTests() const
+  {
+    using namespace internal;
+
+    for (auto failure : failed_tests) {
+      ColoredPrintf(COLOR_RED, "[  FAILED  ] ");
+      printf("%s.%s on ranks {", failure.case_name.c_str(), failure.test_name.c_str());
+      ColoredPrintf(COLOR_RED, "%s", FormatRangedSet(failure.failed_ranks).c_str());
+      printf("}\n");
+    }
+  }
+
+private:
+  struct Failed_Tests_Summary
+  {
+    std::string case_name;
+    std::string test_name;
+    std::set<int> failed_ranks;
+  };
+
+  std::vector<Failed_Tests_Summary> failed_tests;
 };
 
 } // namespace gtest_mpi_listener

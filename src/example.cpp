@@ -47,6 +47,8 @@
 #include "mpi.h"
 #include "gtest/gtest.h"
 
+using namespace gtest_mpi_listener;
+
 // Simple-minded functions for some testing
 
 // Always passes out == rank
@@ -66,7 +68,7 @@ int getMpiRankPlusOne(MPI_Comm comm)
 }
 
 // Passes out == rank when rank is zero, fails otherwise
-int getZero(MPI_Comm comm) { return 0; }
+int getZero(MPI_Comm) { return 0; }
 
 // Passes out == rank except on rank zero, fails otherwise
 int getNonzeroMpiRank(MPI_Comm comm)
@@ -129,10 +131,8 @@ int main(int argc, char **argv)
   delete listeners.Release(listeners.default_result_printer());
 
   // Adds MPI listener; Google Test owns this pointer
-  listeners.Append(new MPIMinimalistPrinter);
+  listeners.Append(new PrettyMPIPrinter);
 
-  // Run tests, then clean up and exit
-  RUN_ALL_TESTS();
-
+  auto test_result = RUN_ALL_TESTS();
   return 0;
 }
