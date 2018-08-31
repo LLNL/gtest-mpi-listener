@@ -41,7 +41,7 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
-*******************************************************************************/
+ *******************************************************************************/
 //
 /*******************************************************************************
  * An example from Google Test was copied with minor modifications. The
@@ -77,7 +77,7 @@
  *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*******************************************************************************/
+ *******************************************************************************/
 
 #ifndef GTEST_MPI_MINIMAL_LISTENER_H
 #define GTEST_MPI_MINIMAL_LISTENER_H
@@ -89,13 +89,15 @@
 
 // This class sets up the global test environment, which is needed
 // to finalize MPI.
-class MPIEnvironment : public ::testing::Environment {
- public:
- MPIEnvironment() : ::testing::Environment() {}
+class MPIEnvironment : public ::testing::Environment
+{
+public:
+  MPIEnvironment() : ::testing::Environment() {}
 
   virtual ~MPIEnvironment() {}
 
-  virtual void SetUp() {
+  virtual void SetUp()
+  {
     int is_mpi_initialized;
     ASSERT_EQ(MPI_Initialized(&is_mpi_initialized), MPI_SUCCESS);
     if (!is_mpi_initialized) {
@@ -106,23 +108,25 @@ class MPIEnvironment : public ::testing::Environment {
     }
   }
 
-  virtual void TearDown() {
+  virtual void TearDown()
+  {
     int is_mpi_finalized;
     ASSERT_EQ(MPI_Finalized(&is_mpi_finalized), MPI_SUCCESS);
     if (!is_mpi_finalized) {
       int rank;
       ASSERT_EQ(MPI_Comm_rank(MPI_COMM_WORLD, &rank), MPI_SUCCESS);
-      if (rank == 0) { printf("Finalizing MPI...\n"); }
+      if (rank == 0) {
+        printf("Finalizing MPI...\n");
+      }
       ASSERT_EQ(MPI_Finalize(), MPI_SUCCESS);
     }
     ASSERT_EQ(MPI_Finalized(&is_mpi_finalized), MPI_SUCCESS);
     ASSERT_TRUE(is_mpi_finalized);
   }
 
- private:
+private:
   // Disallow copying
-  MPIEnvironment(const MPIEnvironment& env) {}
-
+  MPIEnvironment(const MPIEnvironment &env) {}
 };
 
 // This class more or less takes the code in Google Test's
@@ -130,10 +134,9 @@ class MPIEnvironment : public ::testing::Environment {
 // gathering all results onto rank zero.
 class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
 {
- public:
- MPIMinimalistPrinter() : ::testing::EmptyTestEventListener(),
-    result_vector()
- {
+public:
+  MPIMinimalistPrinter() : ::testing::EmptyTestEventListener(), result_vector()
+  {
     int is_mpi_initialized;
     assert(MPI_Initialized(&is_mpi_initialized) == MPI_SUCCESS);
     if (!is_mpi_initialized) {
@@ -144,26 +147,26 @@ class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
     }
     MPI_Comm_dup(MPI_COMM_WORLD, &comm);
     UpdateCommState();
- }
+  }
 
- MPIMinimalistPrinter(MPI_Comm comm_) : ::testing::EmptyTestEventListener(),
-    result_vector()
- {
-   int is_mpi_initialized;
-   assert(MPI_Initialized(&is_mpi_initialized) == MPI_SUCCESS);
-   if (!is_mpi_initialized) {
-     printf("MPI must be initialized before RUN_ALL_TESTS!\n");
-     printf("Add '::testing::InitGoogleTest(&argc, argv);\n");
-     printf("     MPI_Init(&argc, &argv);' to your 'main' function!\n");
-     assert(0);
-   }
+  MPIMinimalistPrinter(MPI_Comm comm_)
+      : ::testing::EmptyTestEventListener(), result_vector()
+  {
+    int is_mpi_initialized;
+    assert(MPI_Initialized(&is_mpi_initialized) == MPI_SUCCESS);
+    if (!is_mpi_initialized) {
+      printf("MPI must be initialized before RUN_ALL_TESTS!\n");
+      printf("Add '::testing::InitGoogleTest(&argc, argv);\n");
+      printf("     MPI_Init(&argc, &argv);' to your 'main' function!\n");
+      assert(0);
+    }
 
-   MPI_Comm_dup(comm_, &comm);
-   UpdateCommState();
- }
+    MPI_Comm_dup(comm_, &comm);
+    UpdateCommState();
+  }
 
-  MPIMinimalistPrinter
-    (const MPIMinimalistPrinter& printer) {
+  MPIMinimalistPrinter(const MPIMinimalistPrinter &printer)
+  {
 
     int is_mpi_initialized;
     assert(MPI_Initialized(&is_mpi_initialized) == MPI_SUCCESS);
@@ -179,7 +182,8 @@ class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
     result_vector = printer.result_vector;
   }
 
-  ~MPIMinimalistPrinter() {
+  ~MPIMinimalistPrinter()
+  {
     int is_mpi_finalized;
     assert(MPI_Finalized(&is_mpi_finalized) == MPI_SUCCESS);
     if (!is_mpi_finalized) {
@@ -188,11 +192,12 @@ class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
   }
 
   // Called before a test starts.
-  virtual void OnTestStart(const ::testing::TestInfo& test_info) {
+  virtual void OnTestStart(const ::testing::TestInfo &test_info)
+  {
     // Only need to report test start info on rank 0
     if (rank == 0) {
-      printf("*** Test %s.%s starting.\n",
-             test_info.test_case_name(), test_info.name());
+      printf("*** Test %s.%s starting.\n", test_info.test_case_name(),
+             test_info.name());
     }
   }
 
@@ -200,17 +205,18 @@ class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
   // In an MPI program, this means that certain ranks may not call this
   // function if a test part does not fail on all ranks. Consequently, it
   // is difficult to have explicit synchronization points here.
-  virtual void OnTestPartResult
-    (const ::testing::TestPartResult& test_part_result) {
+  virtual void
+  OnTestPartResult(const ::testing::TestPartResult &test_part_result)
+  {
     result_vector.push_back(test_part_result);
   }
 
   // Called after a test ends.
-  virtual void OnTestEnd(const ::testing::TestInfo& test_info) {
+  virtual void OnTestEnd(const ::testing::TestInfo &test_info)
+  {
     int localResultCount = result_vector.size();
     std::vector<int> resultCountOnRank(size, 0);
-    MPI_Gather(&localResultCount, 1, MPI_INT,
-               &resultCountOnRank[0], 1, MPI_INT,
+    MPI_Gather(&localResultCount, 1, MPI_INT, &resultCountOnRank[0], 1, MPI_INT,
                0, comm);
 
     if (rank != 0) {
@@ -223,8 +229,8 @@ class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
         std::string resultSummary(test_part_result.summary());
 
         // Must add one for null termination
-        int resultFileNameSize(resultFileName.size()+1);
-        int resultSummarySize(resultSummary.size()+1);
+        int resultFileNameSize(resultFileName.size() + 1);
+        int resultSummarySize(resultSummary.size() + 1);
 
         MPI_Send(&resultStatus, 1, MPI_INT, 0, rank, comm);
         MPI_Send(&resultFileNameSize, 1, MPI_INT, 0, rank, comm);
@@ -232,24 +238,23 @@ class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
         MPI_Send(&resultSummarySize, 1, MPI_INT, 0, rank, comm);
         MPI_Send((char *)resultFileName.c_str(), resultFileNameSize, MPI_CHAR,
                  0, rank, comm);
-        MPI_Send((char *)resultSummary.c_str(), resultSummarySize, MPI_CHAR,
-                 0, rank, comm);
+        MPI_Send((char *)resultSummary.c_str(), resultSummarySize, MPI_CHAR, 0,
+                 rank, comm);
       }
     } else {
       // Rank 0 first prints its local result data
       for (int i = 0; i < localResultCount; i++) {
         const ::testing::TestPartResult test_part_result = result_vector.at(i);
         printf("      %s on rank %d, %s:%d\n%s\n",
-             test_part_result.failed() ? "*** Failure" : "Success",
-             rank,
-             test_part_result.file_name(),
-             test_part_result.line_number(),
-             test_part_result.summary());
+               test_part_result.failed() ? "*** Failure" : "Success", rank,
+               test_part_result.file_name(), test_part_result.line_number(),
+               test_part_result.summary());
       }
 
       for (int r = 1; r < size; r++) {
         for (int i = 0; i < resultCountOnRank[r]; i++) {
-          int resultStatus, resultFileNameSize, resultLineNumber, resultSummarySize;
+          int resultStatus, resultFileNameSize, resultLineNumber,
+              resultSummarySize;
           MPI_Recv(&resultStatus, 1, MPI_INT, r, r, comm, MPI_STATUS_IGNORE);
           MPI_Recv(&resultFileNameSize, 1, MPI_INT, r, r, comm,
                    MPI_STATUS_IGNORE);
@@ -265,35 +270,33 @@ class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
                    MPI_STATUS_IGNORE);
 
           printf("      %s on rank %d, %s:%d\n%s\n",
-                 resultStatus ? "*** Failure" : "Success",
-                 r,
-                 resultFileName,
-                 resultLineNumber,
-                 resultSummary);
+                 resultStatus ? "*** Failure" : "Success", r, resultFileName,
+                 resultLineNumber, resultSummary);
         }
       }
 
-      printf("*** Test %s.%s ending.\n",
-             test_info.test_case_name(), test_info.name());
+      printf("*** Test %s.%s ending.\n", test_info.test_case_name(),
+             test_info.name());
     }
 
     result_vector.clear();
-}
+  }
 
- private:
+private:
   MPI_Comm comm;
   int rank;
   int size;
-  std::vector< ::testing::TestPartResult > result_vector;
+  std::vector< ::testing::TestPartResult> result_vector;
 
   int UpdateCommState()
   {
     int flag = MPI_Comm_rank(comm, &rank);
-    if (flag != MPI_SUCCESS) { return flag; }
+    if (flag != MPI_SUCCESS) {
+      return flag;
+    }
     flag = MPI_Comm_size(comm, &size);
     return flag;
   }
-
 };
 
 #endif /* GTEST_MPI_MINIMAL_LISTENER_H */
