@@ -1,2 +1,4 @@
 # Ignore the googletest library vendored in
 googletest
+*.o
+*.exe
