@@ -62,7 +62,7 @@ TEST(BasicMPI, PassOnAllRanks)
   EXPECT_EQ(rank, getMpiRank(comm));
 }
 
-TEST(BasicMPI, FailOnAllRanks)
+TEST(BasicMPI, DISABLED_FailOnAllRanks)
 {
   MPI_Comm comm = MPI_COMM_WORLD;
   int rank;

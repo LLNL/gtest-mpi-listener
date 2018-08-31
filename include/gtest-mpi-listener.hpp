@@ -221,13 +221,13 @@ public:
     Test_Result_Communicator result_comm{result_vector, comm_};
 
     if (rank_ != 0) {
+      // Ranks other than 0 sends its data to rank 0
       for (auto send_it = result_comm.send_iterator(); !send_it.end();
            ++send_it) {
         send_it.send();
       }
     } else {
       // Rank 0 first prints its local result data
-
       for (auto res_it = result_comm.test_iterator(); !res_it.end(); ++res_it) {
         auto result = *res_it;
 
@@ -238,6 +238,7 @@ public:
         }
       }
 
+      // Rank 0 then fetches result data from the rest of the MPI processes
       for (int r = 1; r < size_; ++r) {
         for (auto rescv_it = result_comm.recieve_iterator(r); !rescv_it.end();
              ++rescv_it) {
@@ -485,8 +486,10 @@ public:
       if (!num_failures) {
         printf("\n"); // Add a spacer if no FAILURE banner is displayed.
       }
-      ColoredPrintf(COLOR_YELLOW, "  YOU HAVE %d DISABLED %s\n\n", num_disabled,
-                    num_disabled == 1 ? "TEST" : "TESTS");
+      ColoredPrintf(
+          COLOR_YELLOW, "YOU HAVE %s\n\n",
+          FormatCountableNoun(num_disabled, "DISABLED TEST", "DISABLED TESTS")
+              .c_str());
     }
 
     fflush(stdout);
@@ -547,7 +550,7 @@ public:
     printf("%s.%s", test_info.test_case_name(), test_info.name());
 
     if (!failed_ranks.empty()) {
-      printf(" on ranks {");
+      printf(" on %s {", failed_ranks.size() == 1 ? "rank" : "ranks");
       ColoredPrintf(COLOR_RED, "%s", FormatRangedSet(failed_ranks).c_str());
       printf("}");
     }
@@ -582,8 +585,11 @@ public:
 
     for (auto failure : failed_tests) {
       ColoredPrintf(COLOR_RED, "[  FAILED  ] ");
-      printf("%s.%s on ranks {", failure.case_name.c_str(), failure.test_name.c_str());
-      ColoredPrintf(COLOR_RED, "%s", FormatRangedSet(failure.failed_ranks).c_str());
+      printf("%s.%s on %s {", failure.case_name.c_str(),
+             failure.test_name.c_str(),
+             failure.failed_ranks.size() == 1 ? "rank" : "ranks");
+      ColoredPrintf(COLOR_RED, "%s",
+                    FormatRangedSet(failure.failed_ranks).c_str());
       printf("}\n");
     }
   }
