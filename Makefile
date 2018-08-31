@@ -53,17 +53,20 @@ GTEST_ROOT=googletest/googletest
 
 .PHONY: all clean
 
-all: $(BIN)/example.exe
+sources := $(wildcard $(SRC)/*.cpp)
+objects := $(sources:$(SRC)/%.cpp=$(BIN)/%.o)
+executables := $(objects:%.o=%.exe)
+
+all: $(executables)
 
 headers := $(INCLUDE)/gtest-mpi-listener.hpp $(wildcard $(INCLUDE)/internal/*.hpp)
 
-$(BIN)/example.exe: $(BIN)/example.o $(BIN)/gtest.o
-	$(CXX) $(CXXFLAGS) -o $(BIN)/example.exe $^
+$(executables): $(BIN)/%.exe : $(BIN)/%.o $(BIN)/gtest.o
+	$(CXX) $(CXXFLAGS) -o $@ $^
 
-$(BIN)/example.o: $(SRC)/example.cpp $(BIN)/gtest.o $(headers)
-	-mkdir -p $(BIN)
-	$(CXX) $(CXXFLAGS) -c -o $(BIN)/example.o -I$(GTEST_ROOT)/include \
-	-Iinclude $(SRC)/example.cpp
+$(objects): $(BIN)/%.o: $(SRC)/%.cpp $(BIN)/gtest.o $(headers)
+	@mkdir -p $(BIN)
+	$(CXX) $(CXXFLAGS) -c -o $@ -I$(GTEST_ROOT)/include -Iinclude $<
 
 $(BIN)/gtest.o: $(GTEST_ROOT)/src/gtest-all.cc
 	-mkdir -p $(BIN)

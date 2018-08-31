@@ -131,7 +131,7 @@ int main(int argc, char **argv)
   delete listeners.Release(listeners.default_result_printer());
 
   // Adds MPI listener; Google Test owns this pointer
-  listeners.Append(new PrettyMPIPrinter);
+  listeners.Append(new MPIMinimalistPrinter);
 
   auto test_result = RUN_ALL_TESTS();
   return 0;
