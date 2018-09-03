@@ -469,7 +469,7 @@ public:
     ColoredPrintf(COLOR_GREEN, "[  PASSED  ] ");
     printf(
         "%s.\n",
-        FormatTestCount(unit_test.total_test_count() - num_failures).c_str());
+        FormatTestCount(unit_test.test_to_run_count() - num_failures).c_str());
 
     if (num_failures > 0) {
       ColoredPrintf(COLOR_RED, "[  FAILED  ] ");
