@@ -179,7 +179,9 @@ class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
     result_vector = printer.result_vector;
   }
 
-  ~MPIMinimalistPrinter() {
+  // Called before the Environment is TornDown.
+  void OnEnvironmentTearDownStart()
+  {
     int is_mpi_finalized;
     assert(MPI_Finalized(&is_mpi_finalized) == MPI_SUCCESS);
     if (!is_mpi_finalized) {
