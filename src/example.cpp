@@ -124,6 +124,7 @@ int main(int argc, char** argv) {
 
   // Adds MPI listener; Google Test owns this pointer
   listeners.Append(new MPIMinimalistPrinter);
+  listeners.Append(new MPISharedTestResults);
 
   // Run tests, then clean up and exit
   RUN_ALL_TESTS();

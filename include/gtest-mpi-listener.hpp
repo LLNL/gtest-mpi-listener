@@ -296,4 +296,166 @@ class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
 
 };
 
+
+
+
+// This class is copied and modified from the LLNL example MPI Google Test listner.
+// That listener is fine for stdout, but the json or xml output files
+// only contain failures / results on the single rank.
+// Combined with a race-condition to write the output file by each rank to the
+// same output file, you will get random test output, containing only some
+// of the failures that you saw printed by the MPI print listener.
+// This listner makes sure that every one of the tests have the same results.
+// However, ordering of the failures will be different on different ranks.
+class MPISharedTestResults : public ::testing::EmptyTestEventListener
+{
+ public:
+ MPISharedTestResults() : ::testing::EmptyTestEventListener(),
+    result_vector()
+ {
+    int is_mpi_initialized;
+    assert(MPI_Initialized(&is_mpi_initialized) == MPI_SUCCESS);
+    if (!is_mpi_initialized) {
+      printf("MPI must be initialized before RUN_ALL_TESTS!\n");
+      printf("Add '::testing::InitGoogleTest(&argc, argv);\n");
+      printf("     MPI_Init(&argc, &argv);' to your 'main' function!\n");
+      assert(0);
+    }
+    MPI_Comm_dup(MPI_COMM_WORLD, &comm);
+    UpdateCommState();
+ }
+
+ MPISharedTestResults(MPI_Comm comm_) : ::testing::EmptyTestEventListener(),
+    result_vector()
+ {
+   int is_mpi_initialized;
+   assert(MPI_Initialized(&is_mpi_initialized) == MPI_SUCCESS);
+   if (!is_mpi_initialized) {
+     printf("MPI must be initialized before RUN_ALL_TESTS!\n");
+     printf("Add '::testing::InitGoogleTest(&argc, argv);\n");
+     printf("     MPI_Init(&argc, &argv);' to your 'main' function!\n");
+     assert(0);
+   }
+
+   MPI_Comm_dup(comm_, &comm);
+   UpdateCommState();
+ }
+
+  MPISharedTestResults
+    (const MPISharedTestResults& printer) {
+
+    int is_mpi_initialized;
+    assert(MPI_Initialized(&is_mpi_initialized) == MPI_SUCCESS);
+    if (!is_mpi_initialized) {
+      printf("MPI must be initialized before RUN_ALL_TESTS!\n");
+      printf("Add '::testing::InitGoogleTest(&argc, argv);\n");
+      printf("     MPI_Init(&argc, &argv);' to your 'main' function!\n");
+      assert(0);
+    }
+
+    MPI_Comm_dup(printer.comm, &comm);
+    UpdateCommState();
+    result_vector = printer.result_vector;
+  }
+
+  ~MPISharedTestResults() {
+    int is_mpi_finalized;
+    assert(MPI_Finalized(&is_mpi_finalized) == MPI_SUCCESS);
+    if (!is_mpi_finalized) {
+      MPI_Comm_free(&comm);
+    }
+  }
+
+  // Called before a test starts.
+  virtual void OnTestStart(const ::testing::TestInfo& test_info) {
+    //noop
+  }
+
+  // Called after an assertion failure or an explicit SUCCESS() macro.
+  // In an MPI program, this means that certain ranks may not call this
+  // function if a test part does not fail on all ranks. Consequently, it
+  // is difficult to have explicit synchronization points here.
+  virtual void OnTestPartResult
+    (const ::testing::TestPartResult& test_part_result) {
+
+	if(get_messages)
+    	result_vector.push_back(test_part_result);
+  }
+
+  // Called after a test ends.
+  virtual void OnTestEnd(const ::testing::TestInfo& test_info) {
+    int localResultCount = result_vector.size();
+    std::vector<int> resultCountOnRank(size, 0);
+    MPI_Allgather(&localResultCount, 1, MPI_INT,
+               &resultCountOnRank[0], 1, MPI_INT,
+               comm);
+
+
+      for (int r = 0; r < size; r++) {
+		  for (int i = 0; i < resultCountOnRank[r]; i++) {
+
+		int resultStatus, resultFileNameSize, resultLineNumber, resultSummarySize;
+		std::string resultFileName, resultSummary;
+
+		  if(r == rank){
+			  //std::cerr << "On rank " << r << " getting info for bcast." << std::endl;
+			  const ::testing::TestPartResult test_part_result = result_vector.at(i);
+	          resultStatus = test_part_result.failed();
+	          resultLineNumber = test_part_result.line_number();
+
+			  resultFileName = test_part_result.file_name();
+	          resultSummary = test_part_result.summary();
+
+	          // Must add one for null termination
+	          resultFileNameSize = resultFileName.size()+1;
+	          resultSummarySize = resultSummary.size()+1;
+		  }
+
+          MPI_Bcast(&resultStatus, 1, MPI_INT, r, comm);
+          MPI_Bcast(&resultFileNameSize, 1, MPI_INT, r, comm);
+          MPI_Bcast(&resultLineNumber, 1, MPI_INT, r, comm);
+          MPI_Bcast(&resultSummarySize, 1, MPI_INT, r, comm);
+
+		  char resultFileName_Cstr[resultFileNameSize];
+          char resultSummary_Cstr[resultSummarySize];
+
+		  if(r == rank){
+			resultFileName.copy(resultFileName_Cstr,resultFileNameSize-1,0);resultFileName_Cstr[resultFileNameSize-1] = '\0';
+			resultSummary.copy(resultSummary_Cstr,resultSummarySize-1,0);resultSummary_Cstr[resultSummarySize-1] = '\0';
+		  }
+		  MPI_Bcast(resultFileName_Cstr, resultFileNameSize, MPI_CHAR,r, comm);
+		  MPI_Bcast(resultSummary_Cstr, resultSummarySize, MPI_CHAR, r, comm);
+
+		  get_messages = false;//Don't cause infinite recursion with the OnTestPartResult listener.
+
+		  if(r != rank) GTEST_MESSAGE_AT_(resultFileName_Cstr, resultLineNumber, resultSummary_Cstr, (::testing::TestPartResult::Type)resultStatus);
+
+		  get_messages = true;
+	}
+
+        }
+
+
+
+    result_vector.clear();
+}
+
+ private:
+  MPI_Comm comm;
+  int rank;
+  int size;
+  std::vector< ::testing::TestPartResult > result_vector;
+  bool get_messages = true;
+
+  int UpdateCommState()
+  {
+    int flag = MPI_Comm_rank(comm, &rank);
+    if (flag != MPI_SUCCESS) { return flag; }
+    flag = MPI_Comm_size(comm, &size);
+    return flag;
+  }
+
+};
+
+
 #endif /* GTEST_MPI_MINIMAL_LISTENER_H */
