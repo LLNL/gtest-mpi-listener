@@ -119,12 +119,16 @@ int main(int argc, char** argv) {
   ::testing::TestEventListeners& listeners =
       ::testing::UnitTest::GetInstance()->listeners();
 
-  // Remove default listener
-  delete listeners.Release(listeners.default_result_printer());
-
-  // Adds MPI listener; Google Test owns this pointer
-  listeners.Append(new MPIMinimalistPrinter);
-  //listeners.Append(new MPISharedTestResults);
+  //only get json/xml output from rank 0
+  int rank;
+  MPI_Comm_rank(comm, &rank);
+  if(0 != rank){
+	  // Remove default listener
+	  delete listeners.Release(listeners.default_result_printer());
+	  // Remove default file output
+	  delete listeners.Release(listeners.default_xml_generator());
+  }
+  listeners.Append(new MPICollectTestResults);
 
   // Run tests, then clean up and exit
   RUN_ALL_TESTS();

@@ -307,11 +307,11 @@ class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
 // of the failures that you saw printed by the MPI print listener.
 // This listner makes sure that every one of the tests have the same results.
 // However, ordering of the failures will be different on different ranks.
-class MPISharedTestResults : public ::testing::EmptyTestEventListener
+class MPICollectTestResults : public ::testing::EmptyTestEventListener
 {
  public:
- MPISharedTestResults() : ::testing::EmptyTestEventListener(),
-    result_vector()
+ MPICollectTestResults() : ::testing::EmptyTestEventListener(),
+    result_vector(), get_messages(true)
  {
     int is_mpi_initialized;
     assert(MPI_Initialized(&is_mpi_initialized) == MPI_SUCCESS);
@@ -325,8 +325,8 @@ class MPISharedTestResults : public ::testing::EmptyTestEventListener
     UpdateCommState();
  }
 
- MPISharedTestResults(MPI_Comm comm_) : ::testing::EmptyTestEventListener(),
-    result_vector()
+ MPICollectTestResults(MPI_Comm comm_) : ::testing::EmptyTestEventListener(),
+    result_vector(), get_messages(true)
  {
    int is_mpi_initialized;
    assert(MPI_Initialized(&is_mpi_initialized) == MPI_SUCCESS);
@@ -341,8 +341,8 @@ class MPISharedTestResults : public ::testing::EmptyTestEventListener
    UpdateCommState();
  }
 
-  MPISharedTestResults
-    (const MPISharedTestResults& printer) {
+  MPICollectTestResults
+    (const MPICollectTestResults& printer) : get_messages(true) {
 
     int is_mpi_initialized;
     assert(MPI_Initialized(&is_mpi_initialized) == MPI_SUCCESS);
@@ -358,7 +358,7 @@ class MPISharedTestResults : public ::testing::EmptyTestEventListener
     result_vector = printer.result_vector;
   }
 
-  ~MPISharedTestResults() {
+  ~MPICollectTestResults() {
     int is_mpi_finalized;
     assert(MPI_Finalized(&is_mpi_finalized) == MPI_SUCCESS);
     if (!is_mpi_finalized) {
@@ -386,66 +386,74 @@ class MPISharedTestResults : public ::testing::EmptyTestEventListener
   virtual void OnTestEnd(const ::testing::TestInfo& test_info) {
     int localResultCount = result_vector.size();
     std::vector<int> resultCountOnRank(size, 0);
-    MPI_Allgather(&localResultCount, 1, MPI_INT,
+    MPI_Gather(&localResultCount, 1, MPI_INT,
                &resultCountOnRank[0], 1, MPI_INT,
-               comm);
+               0, comm);
 
+    if (rank != 0) {
+      // Nonzero ranks send constituent parts of each result to rank 0
+      for (int i = 0; i < localResultCount; i++) {
+        const ::testing::TestPartResult test_part_result = result_vector.at(i);
+        int resultStatus(test_part_result.failed());
+        std::string resultFileName(test_part_result.file_name());
+        int resultLineNumber(test_part_result.line_number());
+        std::string resultSummary(test_part_result.summary());
 
-      for (int r = 0; r < size; r++) {
-		  for (int i = 0; i < resultCountOnRank[r]; i++) {
+        // Must add one for null termination
+        int resultFileNameSize(resultFileName.size()+1);
+        int resultSummarySize(resultSummary.size()+1);
 
-		int resultStatus, resultFileNameSize, resultLineNumber, resultSummarySize;
-		std::string resultFileName, resultSummary;
+        MPI_Send(&resultStatus, 1, MPI_INT, 0, rank, comm);
+        MPI_Send(&resultFileNameSize, 1, MPI_INT, 0, rank, comm);
+        MPI_Send(&resultLineNumber, 1, MPI_INT, 0, rank, comm);
+        MPI_Send(&resultSummarySize, 1, MPI_INT, 0, rank, comm);
+        MPI_Send((char *)resultFileName.c_str(), resultFileNameSize, MPI_CHAR,
+                 0, rank, comm);
+        MPI_Send((char *)resultSummary.c_str(), resultSummarySize, MPI_CHAR,
+                 0, rank, comm);
+      }
+    } else {
+      // Rank 0 already has its own results
+	  /*
+      for (int i = 0; i < localResultCount; i++) {
+        const ::testing::TestPartResult test_part_result = result_vector.at(i);
+      }
+	  */
 
-		  if(r == rank){
-			  //std::cerr << "On rank " << r << " getting info for bcast." << std::endl;
-			  const ::testing::TestPartResult test_part_result = result_vector.at(i);
-	          resultStatus = test_part_result.failed();
-	          resultLineNumber = test_part_result.line_number();
-
-			  resultFileName = test_part_result.file_name();
-	          resultSummary = test_part_result.summary();
-
-	          // Must add one for null termination
-	          resultFileNameSize = resultFileName.size()+1;
-	          resultSummarySize = resultSummary.size()+1;
-		  }
-
-          MPI_Bcast(&resultStatus, 1, MPI_INT, r, comm);
-          MPI_Bcast(&resultFileNameSize, 1, MPI_INT, r, comm);
-          MPI_Bcast(&resultLineNumber, 1, MPI_INT, r, comm);
-          MPI_Bcast(&resultSummarySize, 1, MPI_INT, r, comm);
-
-		  char resultFileName_Cstr[resultFileNameSize];
-          char resultSummary_Cstr[resultSummarySize];
-
-		  if(r == rank){
-			resultFileName.copy(resultFileName_Cstr,resultFileNameSize-1,0);resultFileName_Cstr[resultFileNameSize-1] = '\0';
-			resultSummary.copy(resultSummary_Cstr,resultSummarySize-1,0);resultSummary_Cstr[resultSummarySize-1] = '\0';
-		  }
-		  MPI_Bcast(resultFileName_Cstr, resultFileNameSize, MPI_CHAR,r, comm);
-		  MPI_Bcast(resultSummary_Cstr, resultSummarySize, MPI_CHAR, r, comm);
+      for (int r = 1; r < size; r++) {
+        for (int i = 0; i < resultCountOnRank[r]; i++) {
+          int resultStatus, resultFileNameSize, resultLineNumber, resultSummarySize;
+          MPI_Recv(&resultStatus, 1, MPI_INT, r, r, comm, MPI_STATUS_IGNORE);
+          MPI_Recv(&resultFileNameSize, 1, MPI_INT, r, r, comm,
+                   MPI_STATUS_IGNORE);
+          MPI_Recv(&resultLineNumber, 1, MPI_INT, r, r, comm,
+                   MPI_STATUS_IGNORE);
+          MPI_Recv(&resultSummarySize, 1, MPI_INT, r, r, comm,
+                   MPI_STATUS_IGNORE);
+          char resultFileName[resultFileNameSize];
+          char resultSummary[resultSummarySize];
+          MPI_Recv(resultFileName, resultFileNameSize, MPI_CHAR, r, r, comm,
+                   MPI_STATUS_IGNORE);
+          MPI_Recv(resultSummary, resultSummarySize, MPI_CHAR, r, r, comm,
+                   MPI_STATUS_IGNORE);
 
 		  get_messages = false;//Don't cause infinite recursion with the OnTestPartResult listener.
-
-		  if(r != rank) GTEST_MESSAGE_AT_(resultFileName_Cstr, resultLineNumber, resultSummary_Cstr, (::testing::TestPartResult::Type)resultStatus);
-
+		  if(r != rank) GTEST_MESSAGE_AT_(resultFileName, resultLineNumber, resultSummary, (::testing::TestPartResult::Type)resultStatus);
 		  get_messages = true;
-	}
-
         }
-
-
+      }
+    }
 
     result_vector.clear();
 }
+
 
  private:
   MPI_Comm comm;
   int rank;
   int size;
   std::vector< ::testing::TestPartResult > result_vector;
-  bool get_messages = true;
+  bool get_messages; //= true;
 
   int UpdateCommState()
   {

@@ -54,7 +54,7 @@ GTEST_LIB=googletest/build/googlemock/gtest/libgtest.a
 
 .PHONY: all clean
 
-all: $(BIN)/example.exe
+all: $(BIN)/example.exe $(BIN)/example2.exe
 
 $(BIN)/example.exe: $(BIN)/example.o
 	$(CXX) $(CXXFLAGS) -o $(BIN)/example.exe $(BIN)/example.o -L$(GTEST_LIB_DIR) -lgtest
@@ -63,6 +63,14 @@ $(BIN)/example.o: $(SRC)/example.cpp $(INCLUDE)/gtest-mpi-listener.hpp
 	-mkdir $(BIN)
 	$(CXX) $(CXXFLAGS) -c -o $(BIN)/example.o -I$(GTEST_ROOT)/include \
 	-Iinclude $(SRC)/example.cpp
+
+$(BIN)/example2.exe: $(BIN)/example2.o
+	$(CXX) $(CXXFLAGS) -o $(BIN)/example2.exe $(BIN)/example2.o -L$(GTEST_LIB_DIR) -lgtest
+
+$(BIN)/example2.o: $(SRC)/example2.cpp $(INCLUDE)/gtest-mpi-listener.hpp
+	-mkdir $(BIN)
+	$(CXX) $(CXXFLAGS) -c -o $(BIN)/example2.o -I$(GTEST_ROOT)/include \
+	-Iinclude $(SRC)/example2.cpp
 
 
 clean:
