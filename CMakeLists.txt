@@ -1,4 +1,11 @@
-# TODO(oxberry1@llnl.gov): Add banner comment here
+###############################################################################*
+#
+# Copyright (c) 2016-2019, Lawrence Livermore National Security, LLC
+# and other gtest-mpi-listener developers. See the COPYRIGHT file for details.
+#
+# SPDX-License-Identifier: (Apache-2.0 OR MIT)
+#
+###############################################################################
 
 cmake_minimum_required(VERSION 2.8.11)
 
