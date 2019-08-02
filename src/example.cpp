@@ -13,6 +13,8 @@
 
 // Simple-minded functions for some testing
 
+namespace
+{
 // Always passes out == rank
 int getMpiRank(MPI_Comm comm) {
   int out;
@@ -38,6 +40,8 @@ int getNonzeroMpiRank(MPI_Comm comm) {
   MPI_Comm_rank(comm, &out);
   return (out ? out : 1);
 }
+
+} // end anonymous namespace
 
 // These tests could be made shorter with a fixture, but a fixture
 // deliberately isn't used in order to make the test harness extremely simple
@@ -77,7 +81,7 @@ int main(int argc, char** argv) {
   MPI_Init(&argc, &argv);
 
   // Add object that will finalize MPI on exit; Google Test owns this pointer
-  ::testing::AddGlobalTestEnvironment(new MPIEnvironment);
+  ::testing::AddGlobalTestEnvironment(new GTestMPIListener::MPIEnvironment);
 
   // Get the event listener list.
   ::testing::TestEventListeners& listeners =
@@ -87,7 +91,7 @@ int main(int argc, char** argv) {
   delete listeners.Release(listeners.default_result_printer());
 
   // Adds MPI listener; Google Test owns this pointer
-  listeners.Append(new MPIMinimalistPrinter);
+  listeners.Append(new GTestMPIListener::MPIMinimalistPrinter);
 
   // Run tests, then clean up and exit
   RUN_ALL_TESTS();

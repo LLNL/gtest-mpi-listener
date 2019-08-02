@@ -51,6 +51,9 @@
 #include <cassert>
 #include <vector>
 
+namespace GTestMPIListener
+{
+
 // This class sets up the global test environment, which is needed
 // to finalize MPI.
 class MPIEnvironment : public ::testing::Environment {
@@ -261,5 +264,7 @@ class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
   }
 
 };
+
+} // namespace GTestMPIListener
 
 #endif /* GTEST_MPI_MINIMAL_LISTENER_H */
