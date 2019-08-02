@@ -1,32 +1,42 @@
-Copyright (c) 2016-2018, Lawrence Livermore National Security, LLC.
-Produced at the Lawrence Livermore National Laboratory
-Written by Geoffrey M. Oxberry <oxberry1@llnl.gov>
-LLNL-CODE-739313
-All rights reserved.
+Intellectual Property Notice
+------------------------------
 
-Additional BSD license notice:
+gtest-mpi-listener is licensed under the Apache License, Version 2.0
+(LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0) or the
+MIT license, (LICENSE-MIT or http://opensource.org/licenses/MIT), at
+your option.
 
-1. This notice is required to be provided under our contract with the
-   U.S. Department of Energy (DOE).  This work was produced at
-   Lawrence Livermore National Laboratory under Contract
-   No. DE-AC52-07NA27344 with the DOE.
+Copyrights and patents in the gtest-mpi-listener project are retained
+by contributors.  No copyright assignment is required to contribute to
+gtest-mpi-listener.
 
-2. Neither the United States Government nor Lawrence Livermore
-   National Security, LLC nor any of their employees, makes any
-   warranty, express or implied, or assumes any liability or
-   responsibility for the accuracy, completeness, or usefulness of any
-   information, apparatus, product, or process disclosed, or
-   represents that its use would not infringe privately-owned rights.
+gtest-mpi-listener was originally distributed under a BSD-3 license.
 
-3. Also, reference herein to any specific commercial products,
-   process, or services by trade name, trademark, manufacturer or
-   otherwise does not necessarily constitute or imply its endorsement,
-   recommendation, or favoring by the United States Government or
-   Lawrence Livermore National Security, LLC. The views and opinions
-   of authors expressed herein do not necessarily state or reflect
-   those of the United States Government or Lawrence Livermore
-   National Security, LLC, and shall not be used for advertising or
-   product endorsement purposes.
+SPDX usage
+------------
 
-See the LICENSE file for the precise terms and conditions for copying,
-distribution and modification.
+Individual files contain SPDX tags instead of the full license text.
+This enables machine processing of license information based on the SPDX
+License Identifiers that are available here: https://spdx.org/licenses/
+
+Files that are dual-licensed as Apache-2.0 OR MIT contain the following
+text in the license header:
+
+    SPDX-License-Identifier: (Apache-2.0 OR MIT)
+
+External Packages
+-------------------
+
+gtest-mpi-listener does not currently bundle any external
+dependencies. However, the presentation and naming of licensing and
+copyright files is derived from Spack, which this package's authors
+gratefully acknowledge. In addition, some code in this project was
+derived from Google Test examples.
+
+PackageName: Spack
+PackageHomePage: https://github.com/spack/spack
+PackageLicenseDeclared: (Apache-2.0 OR MIT)
+
+PackageName: Google Test
+PackageHomePage: https://github.com/google/googletest
+PackageLicenseDeclared: BSD-3-Clause
