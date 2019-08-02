@@ -48,9 +48,9 @@ endif()
 find_package(MPI 1.2 REQUIRED)
 
 # Add executable
-add_executable(example src/example.cpp)
-target_link_libraries(example PUBLIC gtest ${MPI_C_LINK_FLAGS}
+add_executable(unit-tests test/unit-tests.cpp)
+target_link_libraries(unit-tests PUBLIC gtest ${MPI_C_LINK_FLAGS}
   ${MPI_C_LIBRARIES} MPI::MPI_C)
-target_include_directories(example PUBLIC include ${MPI_C_INCLUDE_DIRS})
+target_include_directories(unit-tests PUBLIC include ${MPI_C_INCLUDE_DIRS})
 
 target_compile_features(gtest PUBLIC cxx_std_11)
