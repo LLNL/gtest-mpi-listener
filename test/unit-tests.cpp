@@ -87,8 +87,10 @@ int main(int argc, char** argv) {
   ::testing::TestEventListeners& listeners =
       ::testing::UnitTest::GetInstance()->listeners();
 
-  // Remove default listener
-  delete listeners.Release(listeners.default_result_printer());
+  // Remove default listener: the default printer and the default XML printer
+  listeners.Release(listeners.default_result_printer());
+  listeners.Release(listeners.default_xml_generator());
+  delete listeners;
 
   // Adds MPI listener; Google Test owns this pointer
   listeners.Append(new GTestMPIListener::MPIMinimalistPrinter);

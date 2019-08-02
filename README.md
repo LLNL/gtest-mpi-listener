@@ -193,6 +193,10 @@ currently being maintained. As a result of these decisions:
 - this software is header-only, to make vendoring it into software
   packages no more painful than vendoring in Google Test
 
+- this software does not include any facilities for pretty-printing
+  test results in color or printing test reports in alternative
+  formats such as XML or JSON
+
 The current setup should be usable for small numbers of MPI processes
 -- I've tested it on 256 MPI processes and it seems to work fine. If
 there is a need to write infrastructure for testing on 100,000 MPI
@@ -227,5 +231,7 @@ low-maintenance. **In general, even though I intend to respond to
 correspondence about this software (I would like it to improve), users
 should assume I may not get back to them in a timely fashion, or at
 all.**
+
+
 
 *Release number:* LLNL-CODE-739313

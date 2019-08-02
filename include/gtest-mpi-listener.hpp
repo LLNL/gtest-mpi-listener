@@ -50,6 +50,7 @@
 #include "gtest/gtest.h"
 #include <cassert>
 #include <vector>
+#include <string>
 
 namespace GTestMPIListener
 {
@@ -146,7 +147,7 @@ class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
     result_vector = printer.result_vector;
   }
 
-  // Called before the Environment is TornDown.
+  // Called before the Environment is torn down.
   void OnEnvironmentTearDownStart()
   {
     int is_mpi_finalized;
@@ -199,9 +200,9 @@ class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
         MPI_Send(&resultFileNameSize, 1, MPI_INT, 0, rank, comm);
         MPI_Send(&resultLineNumber, 1, MPI_INT, 0, rank, comm);
         MPI_Send(&resultSummarySize, 1, MPI_INT, 0, rank, comm);
-        MPI_Send((char *)resultFileName.c_str(), resultFileNameSize, MPI_CHAR,
+        MPI_Send(resultFileName.c_str(), resultFileNameSize, MPI_CHAR,
                  0, rank, comm);
-        MPI_Send((char *)resultSummary.c_str(), resultSummarySize, MPI_CHAR,
+        MPI_Send(resultSummary.c_str(), resultSummarySize, MPI_CHAR,
                  0, rank, comm);
       }
     } else {
@@ -218,7 +219,8 @@ class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
 
       for (int r = 1; r < size; r++) {
         for (int i = 0; i < resultCountOnRank[r]; i++) {
-          int resultStatus, resultFileNameSize, resultLineNumber, resultSummarySize;
+          int resultStatus, resultFileNameSize, resultLineNumber;
+          int resultSummarySize;
           MPI_Recv(&resultStatus, 1, MPI_INT, r, r, comm, MPI_STATUS_IGNORE);
           MPI_Recv(&resultFileNameSize, 1, MPI_INT, r, r, comm,
                    MPI_STATUS_IGNORE);
@@ -226,19 +228,22 @@ class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
                    MPI_STATUS_IGNORE);
           MPI_Recv(&resultSummarySize, 1, MPI_INT, r, r, comm,
                    MPI_STATUS_IGNORE);
-          char resultFileName[resultFileNameSize];
-          char resultSummary[resultSummarySize];
-          MPI_Recv(resultFileName, resultFileNameSize, MPI_CHAR, r, r, comm,
-                   MPI_STATUS_IGNORE);
-          MPI_Recv(resultSummary, resultSummarySize, MPI_CHAR, r, r, comm,
-                   MPI_STATUS_IGNORE);
+
+          std::string resultFileName;
+          std::string resultSummary;
+          resultFileName.resize(resultFileNameSize);
+          resultSummary.resize(resultSummarySize);
+          MPI_Recv(&resultFileName[0], resultFileNameSize,
+                   MPI_CHAR, r, r, comm, MPI_STATUS_IGNORE);
+          MPI_Recv(&resultSummary[0], resultSummarySize,
+                   MPI_CHAR, r, r, comm, MPI_STATUS_IGNORE);
 
           printf("      %s on rank %d, %s:%d\n%s\n",
                  resultStatus ? "*** Failure" : "Success",
                  r,
-                 resultFileName,
+                 resultFileName.c_str(),
                  resultLineNumber,
-                 resultSummary);
+                 resultSummary.c_str());
         }
       }
 
