@@ -283,4 +283,13 @@ correspondence about this software (I would like it to improve), users
 should assume I may not get back to them in a timely fashion, or at
 all.**
 
+# TODO
+
+- Automate library testing instead of running tests manually. Using
+  BATS to run executables and test captured console output is probably
+  a reasonable solution. Captured console output could be compared to
+  "known good" output, though it might be useful to shim in versions
+  of the wrapper tester that can set the file name (and line number)
+  to known, repeatable values.
+
 *Release number:* LLNL-CODE-739313
