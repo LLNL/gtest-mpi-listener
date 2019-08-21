@@ -88,14 +88,16 @@ int main(int argc, char** argv) {
       ::testing::UnitTest::GetInstance()->listeners();
 
   // Remove default listener: the default printer and the default XML printer
-  delete listeners.Release(listeners.default_result_printer());
-  delete listeners.Release(listeners.default_xml_generator());
+  ::testing::TestEventListener *l =
+        listeners.Release(listeners.default_result_printer());
 
   // Adds MPI listener; Google Test owns this pointer
-  listeners.Append(new GTestMPIListener::MPIMinimalistPrinter);
+  listeners.Append(
+      new GTestMPIListener::MPIWrapperPrinter(l,
+                                              MPI_COMM_WORLD)
+      );
 
   // Run tests, then clean up and exit
-  RUN_ALL_TESTS();
-
-  return 0;
+  int result = RUN_ALL_TESTS();
+  return result;
 }

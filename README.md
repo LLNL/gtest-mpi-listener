@@ -58,6 +58,10 @@ license that must be duplicated in its entirety, per its terms:
  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
+The `MPIWrapperPrinter` class design was influenced by similar code in
+[mxx](https://github.com/patflick/mxx), which is distributed under an
+Apache 2.0 license.
+
 # Requirements
 
 - [CMake](https://cmake.org/)
@@ -91,9 +95,10 @@ the CMake generator used is "Unix Makefiles", run
 
 to build the unit tests.
 
-9) Run the unit tests:
+4) Run the unit tests:
 
-`unit-tests`
+`mpi-minimal-listener-unit-tests`
+`mpi-wrapper-listener-unit-tests`
 
 # Usage
 
@@ -103,12 +108,14 @@ and
 [Google Test Advanced Guide](https://github.com/google/googletest/blob/master/googletest/docs/AdvancedGuide.md)
 for background before reading the remainder of this section.
 
-Usage of this listener is illustrated by the example in
-`src/example.cpp`, which includes some very simple-minded MPI unit
-tests that I've used for basic testing. To use this listener, you will
-need to write your own `int main(int argc, char** argv)` function --
-you cannot use the stock `gtest_main` supplied with Google Test. Using
-a custom `main` function enables us to:
+Usage of these listeners is illustrated by the examples in
+`test/mpi-minimal-listener-unit-tests.cpp` and
+`test/mpi-wrapper-listener-unit-tests.cpp`, both of which include
+some very simple-minded MPI unit tests that are used for basic
+testing. To use this listener, you will need to write your own `int
+main(int argc, char** argv)` function -- you cannot use the stock
+`gtest_main` supplied with Google Test. Using a custom `main` function
+enables us to:
 
 - initialize MPI
 - add an `Environment` object that will finalize MPI when `main`
@@ -117,54 +124,105 @@ a custom `main` function enables us to:
 - add a `TestEventListener` that will emit sensible output (that is,
   rank-ordered output to stdout) for MPI-based unit tests
 
-all of which is necessary, and not possible using the stock `gtest_main` function.
+all of which is necessary, and not possible using the stock
+`gtest_main` function.
 
-Directions for writing tests can be found in
-[Google Test Primer](https://github.com/google/googletest/blob/master/googletest/docs/Primer.md)
-and
-[Google Test Advanced Guide](https://github.com/google/googletest/blob/master/googletest/docs/AdvancedGuide.md). My
-design assumption is that these tests will be executed in distributed
-fashion using the MPI distributed-memory parallel programming model
-(that is, a shared-nothing, process-local memory address space). This
-assumption implies that tests will be run by all MPI processes, or
-disabled on all processes. Conditionals can be used to execute parts
-(or all) of the body of a test on a given MPI process or set of
-processes.
+Directions for writing tests can be found in [Google Test
+Primer](https://github.com/google/googletest/blob/master/googletest/docs/Primer.md)
+and [Google Test Advanced
+Guide](https://github.com/google/googletest/blob/master/googletest/docs/AdvancedGuide.md). The
+design assumption in this library is that these tests will be executed
+in distributed fashion using the MPI distributed-memory parallel
+programming model (that is, a shared-nothing, process-local memory
+address space). This assumption implies that tests will be run by all
+MPI processes, or disabled on all processes. Conditionals can be used
+to execute parts (or all) of the body of a test on a given MPI process
+or set of processes.
 
 After writing tests, your `int main(int argc, char** argv)` function
-should look like the example test runner:
+should look like the test runner in `test/mpi-wrapper-listener-unit-tests.cpp`:
 
-```
+```c++
 int main(int argc, char** argv) {
-// Filter out Google Test arguments
-::testing::InitGoogleTest(&argc, argv);
+  // Filter out Google Test arguments
+  ::testing::InitGoogleTest(&argc, argv);
 
-// Initialize MPI
-MPI_Init(&argc, &argv);
+  // Initialize MPI
+  MPI_Init(&argc, &argv);
 
-// Add object that will finalize MPI on exit; Google Test owns this pointer
-::testing::AddGlobalTestEnvironment(new MPIEnvironment);
+  // Add object that will finalize MPI on exit; Google Test owns this pointer
+  ::testing::AddGlobalTestEnvironment(new GTestMPIListener::MPIEnvironment);
 
-// Get the event listener list.
-::testing::TestEventListeners& listeners =
-::testing::UnitTest::GetInstance()->listeners();
+  // Get the event listener list.
+  ::testing::TestEventListeners& listeners =
+      ::testing::UnitTest::GetInstance()->listeners();
 
-// Remove default listener
-delete listeners.Release(listeners.default_result_printer());
+  // Remove default listener: the default printer and the default XML printer
+  ::testing::TestEventListener *l =
+        listeners.Release(listeners.default_result_printer());
 
-// Adds MPI listener; Google Test owns this pointer
-listeners.Append(new MPIMinimalistPrinter);
+  // Adds MPI listener; Google Test owns this pointer
+  listeners.Append(
+      new GTestMPIListener::MPIWrapperPrinter(l,
+                                              MPI_COMM_WORLD)
+      );
 
-// Run tests, then clean up and exit
-RUN_ALL_TESTS();
-
-return 0;
+  // Run tests, then clean up and exit
+  int result = RUN_ALL_TESTS();
+  return result;
 }
 ```
 
 Comments in this example describe what each line does. The ordering is
 also important, and should be preserved if you augment this example
 with additional code.
+
+Most users should probably use a `MPIWrapperPrinter` wrapped around
+the default Google Test event listener, because this configuration
+provides colorized pretty-printing and works correctly with Google
+Test's XML and JSON output generators. Please note, however, that this
+colorization will add console color code characters to the output,
+which may be undesirable if parsing console output redirected to
+files. Please also note that, due to the architecture of Google Test
+and the use of Google Test's `ADD_FAILURE_AT` macro within
+`MPIWrapperPrinter`, adding more than one instance of
+`MPIWrapperPrinter` to the collection of active listeners is likely to
+yield garbled output.
+
+You could also use an alternative `int main(int argc, char** argv)`
+for your test runner, taken from `test/mpi-minimal-listener-unit-tests.cpp`:
+
+```c++
+int main(int argc, char** argv) {
+    // Filter out Google Test arguments
+    ::testing::InitGoogleTest(&argc, argv);
+
+    // Initialize MPI
+    MPI_Init(&argc, &argv);
+
+    // Add object that will finalize MPI on exit; Google Test owns this pointer
+    ::testing::AddGlobalTestEnvironment(new MPIEnvironment);
+
+    // Get the event listener list.
+    ::testing::TestEventListeners& listeners =
+    ::testing::UnitTest::GetInstance()->listeners();
+
+    // Remove default listener
+    delete listeners.Release(listeners.default_result_printer());
+
+    // Adds MPI listener; Google Test owns this pointer
+    listeners.Append(new MPIMinimalistPrinter);
+
+    // Run tests, then clean up and exit
+    int result = RUN_ALL_TESTS();
+    return result;
+}
+```
+
+Output from `MPIminimalistPrinter` is not colorized, and does not work
+well with JSON or XML output. Consider this listener if you need more
+easily parseable output and you are willing to sacrifice pretty
+printing and pretty XML or JSON unit test reports.
 
 # Design considerations
 
@@ -184,18 +242,8 @@ currently being maintained. As a result of these decisions:
   3)](http://wgropp.cs.illinois.edu/courses/cs598-s16/lectures/lecture32.pdf),
   "worse than sequential"
 
-- this software doesn't have the awesome, fancy, color-coded output
-  that stock Google Test uses, because all of those functions are
-  implemented as `static` in `googletest/googletest/src/gtest.cc`, and
-  thus are inaccessible from outside that translation unit because
-  they are not part of the Google Test public API
-
 - this software is header-only, to make vendoring it into software
   packages no more painful than vendoring in Google Test
-
-- this software does not include any facilities for pretty-printing
-  test results in color or printing test reports in alternative
-  formats such as XML or JSON
 
 The current setup should be usable for small numbers of MPI processes
 -- I've tested it on 256 MPI processes and it seems to work fine. If
@@ -231,7 +279,5 @@ low-maintenance. **In general, even though I intend to respond to
 correspondence about this software (I would like it to improve), users
 should assume I may not get back to them in a timely fashion, or at
 all.**
-
-
 
 *Release number:* LLNL-CODE-739313

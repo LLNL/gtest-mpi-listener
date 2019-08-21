@@ -47,10 +47,21 @@ endif()
 # In FindMPI.cmake, "CXX" refers to "the MPI C API [being] usable from C++"
 find_package(MPI 1.2 REQUIRED)
 
-# Add executable
-add_executable(unit-tests test/unit-tests.cpp)
-target_link_libraries(unit-tests PUBLIC gtest ${MPI_C_LINK_FLAGS}
+# Add executables
+add_executable(mpi-minimal-listener-unit-tests
+  test/mpi-minimal-listener-unit-tests.cpp)
+target_link_libraries(mpi-minimal-listener-unit-tests
+  PUBLIC gtest ${MPI_C_LINK_FLAGS}
   ${MPI_C_LIBRARIES} MPI::MPI_C)
-target_include_directories(unit-tests PUBLIC include ${MPI_C_INCLUDE_DIRS})
+target_include_directories(mpi-minimal-listener-unit-tests
+  PUBLIC include ${MPI_C_INCLUDE_DIRS})
+
+add_executable(mpi-wrapper-listener-unit-tests
+  test/mpi-wrapper-listener-unit-tests.cpp)
+target_link_libraries(mpi-wrapper-listener-unit-tests
+  PUBLIC gtest ${MPI_C_LINK_FLAGS}
+  ${MPI_C_LIBRARIES} MPI::MPI_C)
+target_include_directories(mpi-wrapper-listener-unit-tests
+  PUBLIC include ${MPI_C_INCLUDE_DIRS})
 
 target_compile_features(gtest PUBLIC cxx_std_11)

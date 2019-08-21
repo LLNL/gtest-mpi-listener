@@ -277,8 +277,8 @@ class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
 class MPIWrapperPrinter : public ::testing::TestEventListener
 {
  public:
-    MPIWrapperPrinter(::testing::TestEventListener &l, MPI_Comm comm_) :
-        ::testing::TestEventListener(), listener(l), result_vector()
+MPIWrapperPrinter(::testing::TestEventListener *l, MPI_Comm comm_) :
+    ::testing::TestEventListener(), listener(l), result_vector()
  {
    int is_mpi_initialized;
    assert(MPI_Initialized(&is_mpi_initialized) == MPI_SUCCESS);
@@ -293,9 +293,9 @@ class MPIWrapperPrinter : public ::testing::TestEventListener
    UpdateCommState();
  }
 
-  MPIWrapperPrinter
-  (const MPIWrapperPrinter& printer) :
-      listener(printer.listener), result_vector(printer.result_vector) {
+MPIWrapperPrinter
+(const MPIWrapperPrinter& printer) :
+    listener(printer.listener), result_vector(printer.result_vector) {
 
     int is_mpi_initialized;
     assert(MPI_Initialized(&is_mpi_initialized) == MPI_SUCCESS);
@@ -308,61 +308,59 @@ class MPIWrapperPrinter : public ::testing::TestEventListener
 
     MPI_Comm_dup(printer.comm, &comm);
     UpdateCommState();
-    // result_vector = printer.result_vector;
-    // listener = printer.listener;
-  }
+}
 
-  // Called before test activity starts
-  virtual void OnTestProgramStart(const ::testing::UnitTest &unit_test)
-  {
-      if (rank == 0) { listener.OnTestProgramStart(unit_test); }
-  }
+// Called before test activity starts
+virtual void OnTestProgramStart(const ::testing::UnitTest &unit_test)
+{
+    if (rank == 0) { listener->OnTestProgramStart(unit_test); }
+}
 
 
-  // Called before each test iteration starts, where iteration is
-  // the iterate index. There could be more than one iteration if
-  // GTEST_FLAG(repeat) is used.
-    virtual void OnTestIterationStart(const ::testing::UnitTest &unit_test,
-                                      int iteration)
-    {
-        if (rank == 0) { listener.OnTestIterationStart(unit_test, iteration); }
-    }
+// Called before each test iteration starts, where iteration is
+// the iterate index. There could be more than one iteration if
+// GTEST_FLAG(repeat) is used.
+ virtual void OnTestIterationStart(const ::testing::UnitTest &unit_test,
+                                   int iteration)
+ {
+     if (rank == 0) { listener->OnTestIterationStart(unit_test, iteration); }
+ }
 
 
 
 // Called before environment setup before start of each test iteration
-    virtual void OnEnvironmentsSetUpStart(const ::testing::UnitTest &unit_test)
-    {
-        if (rank == 0) { listener.OnEnvironmentsSetUpStart(unit_test); }
-    }
+virtual void OnEnvironmentsSetUpStart(const ::testing::UnitTest &unit_test)
+{
+    if (rank == 0) { listener->OnEnvironmentsSetUpStart(unit_test); }
+}
 
-    virtual void OnEnvironmentsSetUpEnd(const ::testing::UnitTest &unit_test)
-    {
-        if (rank == 0) { listener.OnEnvironmentsSetUpEnd(unit_test); }
-    }
+virtual void OnEnvironmentsSetUpEnd(const ::testing::UnitTest &unit_test)
+{
+    if (rank == 0) { listener->OnEnvironmentsSetUpEnd(unit_test); }
+}
 
 #ifndef GTEST_REMOVE_LEGACY_TEST_CASEAPI_
-    virtual void OnTestCaseStart(const ::testing::TestCase &test_case)
-    {
-        if (rank == 0) { listener.OnTestCaseStart(test_case); }
-    }
+virtual void OnTestCaseStart(const ::testing::TestCase &test_case)
+{
+    if (rank == 0) { listener->OnTestCaseStart(test_case); }
+}
 #endif // GTEST_REMOVE_LEGACY_TEST_CASEAPI_
 
-  // Called before a test starts.
-  virtual void OnTestStart(const ::testing::TestInfo& test_info) {
+// Called before a test starts.
+virtual void OnTestStart(const ::testing::TestInfo& test_info) {
     // Only need to report test start info on rank 0
-    if (rank == 0) { listener.OnTestStart(test_info); }
-  }
+    if (rank == 0) { listener->OnTestStart(test_info); }
+}
 
-  // Called after an assertion failure or an explicit SUCCESS() macro.
-  // In an MPI program, this means that certain ranks may not call this
-  // function if a test part does not fail on all ranks. Consequently, it
-  // is difficult to have explicit synchronization points here.
-  virtual void OnTestPartResult
-    (const ::testing::TestPartResult& test_part_result) {
-      result_vector.push_back(test_part_result);
-      if (rank == 0) { listener.OnTestPartResult(test_part_result); }
-  }
+// Called after an assertion failure or an explicit SUCCESS() macro.
+// In an MPI program, this means that certain ranks may not call this
+// function if a test part does not fail on all ranks. Consequently, it
+// is difficult to have explicit synchronization points here.
+virtual void OnTestPartResult
+(const ::testing::TestPartResult& test_part_result) {
+    result_vector.push_back(test_part_result);
+    if (rank == 0) { listener->OnTestPartResult(test_part_result); }
+}
 
   // Called after a test ends.
   virtual void OnTestEnd(const ::testing::TestInfo& test_info) {
@@ -401,15 +399,18 @@ class MPIWrapperPrinter : public ::testing::TestEventListener
         if (test_part_result.failed())
         {
             std::string message(test_part_result.message());
-            std::istringstream iss(message);
-            std::stringstream ss;
+            std::istringstream input_stream(message);
+            std::stringstream to_stream_into_failure;
             std::string line_as_string;
-            while (std::getline(iss, line_as_string))
+            while (std::getline(input_stream, line_as_string))
             {
-                ss << "[Rank 0/" << size << "] " << line_as_string << std::endl;
+                to_stream_into_failure << "[Rank 0/" << size << "] "
+                                       << line_as_string << std::endl;
             }
+
             ADD_FAILURE_AT(test_part_result.file_name(),
-                           test_part_result.line_number());
+                           test_part_result.line_number()) <<
+                to_stream_into_failure.str();
         }
       }
 
@@ -438,31 +439,31 @@ class MPIWrapperPrinter : public ::testing::TestEventListener
           if (testPartHasFailed)
           {
               std::string message(resultMessage);
-              std::istringstream iss(message);
-              std::stringstream ss;
+              std::istringstream input_stream(message);
+              std::stringstream to_stream_into_failure;
               std::string line_as_string;
 
-              while (std::getline(iss, line_as_string))
+              while (std::getline(input_stream, line_as_string))
               {
-                  ss << "[Rank " << r << "/"  << size << "] "
-                     << line_as_string << std::endl;
+                  to_stream_into_failure << "[Rank " << r << "/"  << size << "] "
+                                         << line_as_string << std::endl;
               }
 
               ADD_FAILURE_AT(resultFileName.c_str(),
-                             resultLineNumber);
+                             resultLineNumber) << to_stream_into_failure.str();
           }
         }
       }
     }
 
     result_vector.clear();
-    if (rank == 0) { listener.OnTestEnd(test_info); }
+    if (rank == 0) { listener->OnTestEnd(test_info); }
 }
 
 #ifndef GTEST_REMOVE_LEGACY_TEST_CASEAPI_
     virtual void OnTestCaseEnd(const ::testing::TestCase &test_case)
         {
-            if (rank == 0) { listener.OnTestCaseEnd(test_case); }
+            if (rank == 0) { listener->OnTestCaseEnd(test_case); }
         }
 
 #endif
@@ -475,28 +476,31 @@ virtual void OnEnvironmentsTearDownStart(const ::testing::UnitTest &unit_test)
     if (!is_mpi_finalized) {
         MPI_Comm_free(&comm);
     }
-    if (rank == 0) { listener.OnEnvironmentsTearDownStart(unit_test);  }
+    if (rank == 0) { listener->OnEnvironmentsTearDownStart(unit_test);  }
 }
 
 virtual void OnEnvironmentsTearDownEnd(const ::testing::UnitTest &unit_test)
 {
-    if (rank == 0) { listener.OnEnvironmentsTearDownEnd(unit_test); }
+    if (rank == 0) { listener->OnEnvironmentsTearDownEnd(unit_test); }
 }
 
 virtual void OnTestIterationEnd(const ::testing::UnitTest &unit_test,
                                 int iteration)
-    {
-        if (rank == 0) { listener.OnTestIterationEnd(unit_test, iteration); }
-    }
+{
+    if (rank == 0) { listener->OnTestIterationEnd(unit_test, iteration); }
+}
 
-    // Called when test driver program ends
-    virtual void OnTestProgramEnd(const ::testing::UnitTest &unit_test)
-        {
-            if (rank == 0) { listener.OnTestProgramEnd(unit_test); }
-        }
+// Called when test driver program ends
+virtual void OnTestProgramEnd(const ::testing::UnitTest &unit_test)
+{
+    if (rank == 0) { listener->OnTestProgramEnd(unit_test); }
+}
 
  private:
-  ::testing::TestEventListener &listener;
+    // Use a pointer here instead of a reference because
+    // ::testing::TestEventListeners::Release returns a pointer
+    // (namely, one of type ::testing::TesteEventListener*).
+  ::testing::TestEventListener *listener;
   MPI_Comm comm;
   int rank;
   int size;
