@@ -379,9 +379,8 @@ virtual void OnTestPartResult
         int resultLineNumber(test_part_result.line_number());
         std::string resultMessage(test_part_result.message());
 
-        // Must add one for null termination
-        int resultFileNameSize(resultFileName.size()+1);
-        int resultMessageSize(resultMessage.size()+1);
+        int resultFileNameSize(resultFileName.size());
+        int resultMessageSize(resultMessage.size());
 
         MPI_Send(&resultStatus, 1, MPI_INT, 0, rank, comm);
         MPI_Send(&resultFileNameSize, 1, MPI_INT, 0, rank, comm);
@@ -426,14 +425,17 @@ virtual void OnTestPartResult
           MPI_Recv(&resultMessageSize, 1, MPI_INT, r, r, comm,
                    MPI_STATUS_IGNORE);
 
-          std::string resultFileName;
-          std::string resultMessage;
-          resultFileName.resize(resultFileNameSize);
-          resultMessage.resize(resultMessageSize);
-          MPI_Recv(&resultFileName[0], resultFileNameSize,
+          std::vector<char> fileNameBuffer(resultFileNameSize);
+          std::vector<char> messageBuffer(resultMessageSize);
+          MPI_Recv(&fileNameBuffer[0], resultFileNameSize,
                    MPI_CHAR, r, r, comm, MPI_STATUS_IGNORE);
-          MPI_Recv(&resultMessage[0], resultMessageSize,
+          MPI_Recv(&messageBuffer[0], resultMessageSize,
                    MPI_CHAR, r, r, comm, MPI_STATUS_IGNORE);
+
+          std::string resultFileName(fileNameBuffer.begin(),
+                                     fileNameBuffer.end());
+          std::string resultMessage(messageBuffer.begin(),
+                                    messageBuffer.end());
 
           bool testPartHasFailed = (resultStatus == 1);
           if (testPartHasFailed)
