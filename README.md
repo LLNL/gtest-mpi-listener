@@ -166,10 +166,11 @@ int main(int argc, char** argv) {
       new GTestMPIListener::MPIWrapperPrinter(l,
                                               MPI_COMM_WORLD)
       );
-
-  // Run tests, then clean up and exit
+  // Run tests, then clean up and exit. RUN_ALL_TESTS() returns 0 if all tests
+  // pass and 1 if some test fails.
   int result = RUN_ALL_TESTS();
-  return result;
+
+  return 0;  // Run tests, then clean up and exit
 }
 ```
 
@@ -213,9 +214,11 @@ int main(int argc, char** argv) {
     // Adds MPI listener; Google Test owns this pointer
     listeners.Append(new MPIMinimalistPrinter);
 
-    // Run tests, then clean up and exit
+    // Run tests, then clean up and exit. RUN_ALL_TESTS() returns 0 if all tests
+    // pass and 1 if some test fails.
     int result = RUN_ALL_TESTS();
-    return result;
+
+    return 0;
 }
 ```
 
