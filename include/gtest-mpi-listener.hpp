@@ -51,6 +51,7 @@
 #include <cassert>
 #include <vector>
 #include <string>
+#include <sstream>
 
 namespace GTestMPIListener
 {
@@ -91,7 +92,7 @@ class MPIEnvironment : public ::testing::Environment {
   // Disallow copying
   MPIEnvironment(const MPIEnvironment& env) {}
 
-};
+}; // class MPIEnvironment
 
 // This class more or less takes the code in Google Test's
 // MinimalistPrinter example and wraps certain parts of it in MPI calls,
@@ -255,6 +256,247 @@ class MPIMinimalistPrinter : public ::testing::EmptyTestEventListener
 }
 
  private:
+  MPI_Comm comm;
+  int rank;
+  int size;
+  std::vector< ::testing::TestPartResult > result_vector;
+
+  int UpdateCommState()
+  {
+    int flag = MPI_Comm_rank(comm, &rank);
+    if (flag != MPI_SUCCESS) { return flag; }
+    flag = MPI_Comm_size(comm, &size);
+    return flag;
+  }
+
+}; // class MPIMinimalistPrinter
+
+// This class more or less takes the code in Google Test's
+// MinimalistPrinter example and wraps certain parts of it in MPI calls,
+// gathering all results onto rank zero.
+class MPIWrapperPrinter : public ::testing::TestEventListener
+{
+ public:
+    MPIWrapperPrinter(::testing::TestEventListener &l, MPI_Comm comm_) :
+        ::testing::TestEventListener(), listener(l), result_vector()
+ {
+   int is_mpi_initialized;
+   assert(MPI_Initialized(&is_mpi_initialized) == MPI_SUCCESS);
+   if (!is_mpi_initialized) {
+     printf("MPI must be initialized before RUN_ALL_TESTS!\n");
+     printf("Add '::testing::InitGoogleTest(&argc, argv);\n");
+     printf("     MPI_Init(&argc, &argv);' to your 'main' function!\n");
+     assert(0);
+   }
+
+   MPI_Comm_dup(comm_, &comm);
+   UpdateCommState();
+ }
+
+  MPIWrapperPrinter
+  (const MPIWrapperPrinter& printer) :
+      listener(printer.listener), result_vector(printer.result_vector) {
+
+    int is_mpi_initialized;
+    assert(MPI_Initialized(&is_mpi_initialized) == MPI_SUCCESS);
+    if (!is_mpi_initialized) {
+      printf("MPI must be initialized before RUN_ALL_TESTS!\n");
+      printf("Add '::testing::InitGoogleTest(&argc, argv);\n");
+      printf("     MPI_Init(&argc, &argv);' to your 'main' function!\n");
+      assert(0);
+    }
+
+    MPI_Comm_dup(printer.comm, &comm);
+    UpdateCommState();
+    // result_vector = printer.result_vector;
+    // listener = printer.listener;
+  }
+
+  // Called before test activity starts
+  virtual void OnTestProgramStart(const ::testing::UnitTest &unit_test)
+  {
+      if (rank == 0) { listener.OnTestProgramStart(unit_test); }
+  }
+
+
+  // Called before each test iteration starts, where iteration is
+  // the iterate index. There could be more than one iteration if
+  // GTEST_FLAG(repeat) is used.
+    virtual void OnTestIterationStart(const ::testing::UnitTest &unit_test,
+                                      int iteration)
+    {
+        if (rank == 0) { listener.OnTestIterationStart(unit_test, iteration); }
+    }
+
+
+
+// Called before environment setup before start of each test iteration
+    virtual void OnEnvironmentsSetUpStart(const ::testing::UnitTest &unit_test)
+    {
+        if (rank == 0) { listener.OnEnvironmentsSetUpStart(unit_test); }
+    }
+
+    virtual void OnEnvironmentsSetUpEnd(const ::testing::UnitTest &unit_test)
+    {
+        if (rank == 0) { listener.OnEnvironmentsSetUpEnd(unit_test); }
+    }
+
+#ifndef GTEST_REMOVE_LEGACY_TEST_CASEAPI_
+    virtual void OnTestCaseStart(const ::testing::TestCase &test_case)
+    {
+        if (rank == 0) { listener.OnTestCaseStart(test_case); }
+    }
+#endif // GTEST_REMOVE_LEGACY_TEST_CASEAPI_
+
+  // Called before a test starts.
+  virtual void OnTestStart(const ::testing::TestInfo& test_info) {
+    // Only need to report test start info on rank 0
+    if (rank == 0) { listener.OnTestStart(test_info); }
+  }
+
+  // Called after an assertion failure or an explicit SUCCESS() macro.
+  // In an MPI program, this means that certain ranks may not call this
+  // function if a test part does not fail on all ranks. Consequently, it
+  // is difficult to have explicit synchronization points here.
+  virtual void OnTestPartResult
+    (const ::testing::TestPartResult& test_part_result) {
+      result_vector.push_back(test_part_result);
+      if (rank == 0) { listener.OnTestPartResult(test_part_result); }
+  }
+
+  // Called after a test ends.
+  virtual void OnTestEnd(const ::testing::TestInfo& test_info) {
+    int localResultCount = result_vector.size();
+    std::vector<int> resultCountOnRank(size, 0);
+    MPI_Gather(&localResultCount, 1, MPI_INT,
+               &resultCountOnRank[0], 1, MPI_INT,
+               0, comm);
+
+    if (rank != 0) {
+      // Nonzero ranks send constituent parts of each result to rank 0
+      for (int i = 0; i < localResultCount; i++) {
+        const ::testing::TestPartResult test_part_result = result_vector.at(i);
+        int resultStatus(test_part_result.failed());
+        std::string resultFileName(test_part_result.file_name());
+        int resultLineNumber(test_part_result.line_number());
+        std::string resultMessage(test_part_result.message());
+
+        // Must add one for null termination
+        int resultFileNameSize(resultFileName.size()+1);
+        int resultMessageSize(resultMessage.size()+1);
+
+        MPI_Send(&resultStatus, 1, MPI_INT, 0, rank, comm);
+        MPI_Send(&resultFileNameSize, 1, MPI_INT, 0, rank, comm);
+        MPI_Send(&resultLineNumber, 1, MPI_INT, 0, rank, comm);
+        MPI_Send(&resultMessageSize, 1, MPI_INT, 0, rank, comm);
+        MPI_Send(resultFileName.c_str(), resultFileNameSize, MPI_CHAR,
+                 0, rank, comm);
+        MPI_Send(resultMessage.c_str(), resultMessageSize, MPI_CHAR,
+                 0, rank, comm);
+      }
+    } else {
+      // Rank 0 first prints its local result data
+      for (int i = 0; i < localResultCount; i++) {
+        const ::testing::TestPartResult test_part_result = result_vector.at(i);
+        if (test_part_result.failed())
+        {
+            std::string message(test_part_result.message());
+            std::istringstream iss(message);
+            std::stringstream ss;
+            std::string line_as_string;
+            while (std::getline(iss, line_as_string))
+            {
+                ss << "[Rank 0/" << size << "] " << line_as_string << std::endl;
+            }
+            ADD_FAILURE_AT(test_part_result.file_name(),
+                           test_part_result.line_number());
+        }
+      }
+
+      for (int r = 1; r < size; r++) {
+        for (int i = 0; i < resultCountOnRank[r]; i++) {
+          int resultStatus, resultFileNameSize, resultLineNumber;
+          int resultMessageSize;
+          MPI_Recv(&resultStatus, 1, MPI_INT, r, r, comm, MPI_STATUS_IGNORE);
+          MPI_Recv(&resultFileNameSize, 1, MPI_INT, r, r, comm,
+                   MPI_STATUS_IGNORE);
+          MPI_Recv(&resultLineNumber, 1, MPI_INT, r, r, comm,
+                   MPI_STATUS_IGNORE);
+          MPI_Recv(&resultMessageSize, 1, MPI_INT, r, r, comm,
+                   MPI_STATUS_IGNORE);
+
+          std::string resultFileName;
+          std::string resultMessage;
+          resultFileName.resize(resultFileNameSize);
+          resultMessage.resize(resultMessageSize);
+          MPI_Recv(&resultFileName[0], resultFileNameSize,
+                   MPI_CHAR, r, r, comm, MPI_STATUS_IGNORE);
+          MPI_Recv(&resultMessage[0], resultMessageSize,
+                   MPI_CHAR, r, r, comm, MPI_STATUS_IGNORE);
+
+          bool testPartHasFailed = (resultStatus == 1);
+          if (testPartHasFailed)
+          {
+              std::string message(resultMessage);
+              std::istringstream iss(message);
+              std::stringstream ss;
+              std::string line_as_string;
+
+              while (std::getline(iss, line_as_string))
+              {
+                  ss << "[Rank " << r << "/"  << size << "] "
+                     << line_as_string << std::endl;
+              }
+
+              ADD_FAILURE_AT(resultFileName.c_str(),
+                             resultLineNumber);
+          }
+        }
+      }
+    }
+
+    result_vector.clear();
+    if (rank == 0) { listener.OnTestEnd(test_info); }
+}
+
+#ifndef GTEST_REMOVE_LEGACY_TEST_CASEAPI_
+    virtual void OnTestCaseEnd(const ::testing::TestCase &test_case)
+        {
+            if (rank == 0) { listener.OnTestCaseEnd(test_case); }
+        }
+
+#endif
+
+// Called before the Environment is torn down.
+virtual void OnEnvironmentsTearDownStart(const ::testing::UnitTest &unit_test)
+{
+    int is_mpi_finalized;
+    assert(MPI_Finalized(&is_mpi_finalized) == MPI_SUCCESS);
+    if (!is_mpi_finalized) {
+        MPI_Comm_free(&comm);
+    }
+    if (rank == 0) { listener.OnEnvironmentsTearDownStart(unit_test);  }
+}
+
+virtual void OnEnvironmentsTearDownEnd(const ::testing::UnitTest &unit_test)
+{
+    if (rank == 0) { listener.OnEnvironmentsTearDownEnd(unit_test); }
+}
+
+virtual void OnTestIterationEnd(const ::testing::UnitTest &unit_test,
+                                int iteration)
+    {
+        if (rank == 0) { listener.OnTestIterationEnd(unit_test, iteration); }
+    }
+
+    // Called when test driver program ends
+    virtual void OnTestProgramEnd(const ::testing::UnitTest &unit_test)
+        {
+            if (rank == 0) { listener.OnTestProgramEnd(unit_test); }
+        }
+
+ private:
+  ::testing::TestEventListener &listener;
   MPI_Comm comm;
   int rank;
   int size;
