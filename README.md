@@ -24,7 +24,7 @@ software
 
 # License
 
-This software is dual-licensed under the MIT and Apache 2.0 licenses,
+This software is triple-licensed under the BSD-3, MIT, and Apache 2.0 licenses,
 and uses some example code from Google Test, which has the following
 license that must be duplicated in its entirety, per its terms:
 
