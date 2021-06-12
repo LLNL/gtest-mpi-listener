@@ -1,0 +1,6 @@
+option('MPI_WRAPPER',
+  type : 'boolean',
+  value : false,
+  description : 'Expects CC and CXX to point to an mpi wrapper tool (e.g. mpic++)',
+  yield: true
+)
