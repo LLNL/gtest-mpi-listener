@@ -2,7 +2,12 @@ project('gtest-mpi-listener', ['c', 'cpp'],
   license: 'BSD-3-Clause',
 )
 
-mpi_dep = dependency('mpi', language: 'cpp', required: true)
+null_dep = dependency('', required : false)
+if get_option('MPI_WRAPPER')
+  mpi_dep = null_dep
+else
+  mpi_dep = dependency('mpi', language: 'cpp', required: true)
+endif
 
 gtest_mpi_listener_dep = declare_dependency(
   sources: files([
